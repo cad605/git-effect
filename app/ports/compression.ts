@@ -17,5 +17,5 @@ export type CompressionShape = {
 };
 
 export class Compression extends ServiceMap.Service<Crypto, CompressionShape>()(
-  "app/ports/Crypto",
+  "app/ports/Compression",
 ) {}

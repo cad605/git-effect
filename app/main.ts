@@ -4,9 +4,9 @@ import { Effect } from "effect";
 import { CompressionLive } from "./adapters/compression.ts";
 import { CryptoLive } from "./adapters/crypto.ts";
 import { GitLive } from "./adapters/git.ts";
-import { root } from "./domain/commands.ts";
+import { program } from "./domain/commands.ts";
 
-root.pipe(
+program.pipe(
   Effect.provide(GitLive),
   Effect.provide(CryptoLive),
   Effect.provide(CompressionLive),

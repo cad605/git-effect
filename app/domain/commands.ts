@@ -107,6 +107,6 @@ export const parent = Command.make("git").pipe(
   Command.withDescription("Git is a version control system."),
 );
 
-export const root = Command.run(parent.pipe(Command.withSubcommands([init, catFile, hashObject])), {
+export const program = Command.run(parent.pipe(Command.withSubcommands([init, catFile, hashObject])), {
   version: "1.0.0",
 });

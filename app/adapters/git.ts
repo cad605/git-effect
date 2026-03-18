@@ -11,6 +11,12 @@ export const GitLive = Layer.effect(
     const compression = yield* Compression;
     const crypto = yield* Crypto;
 
+    // #region agent log
+    yield* Effect.tryPromise(() => 
+      fetch('http://127.0.0.1:7650/ingest/37fde57d-7485-45a9-b10d-4c7c9101b241',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'40abb1'},body:JSON.stringify({sessionId:'40abb1',runId:'run1',hypothesisId:'1,2,3',location:'app/adapters/git.ts:13',message:'compression properties',data:{keys:Object.keys(compression)},timestamp:Date.now()})}).catch(()=>{})
+    );
+    // #endregion
+
     const init = Effect.fn("Git.init")(
       function* () {
         yield* fs.makeDirectory(".git", { recursive: true });
