@@ -47,15 +47,25 @@ const catFile = Command.make(
     const fs = yield* FileSystem.FileSystem;
     const terminal = yield* Terminal.Terminal
 
+    yield* Effect.logDebug("Reading file...", { hash, pretty });
+
     const compressed = yield* fs.readFile(`.git/objects/${hash.slice(0, 2)}/${hash.slice(2)}`);
+
+    yield* Effect.logDebug("Decompressing file...", { compressed });
 
     const decompressed = unzipSync(compressed);
 
-    const [_, content] = decompressed.toString("utf-8").split("\0");
+    yield* Effect.logDebug("Decompressed file...", { decompressed });
+
+    const [type, content] = decompressed.toString("utf-8").split("\0");
+
+    yield* Effect.logDebug("Result...", { type, content });
 
     if (pretty) {
       yield* terminal.display(content);
     }
+
+    yield* Effect.logDebug("Done", { success: true });
   }),
 ).pipe(
   Command.withDescription("View the type, size, and content of a Git object"),
