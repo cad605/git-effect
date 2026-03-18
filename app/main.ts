@@ -1,5 +1,5 @@
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { Console, Effect, FileSystem } from "effect";
+import { Console, Effect, FileSystem, Terminal } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { unzipSync  } from "node:zlib";
 
@@ -45,6 +45,7 @@ const catFile = Command.make(
   },
   Effect.fn("git.cat-file")(function* ({ pretty, hash }) {
     const fs = yield* FileSystem.FileSystem;
+    const terminal = yield* Terminal.Terminal
 
     const compressed = yield* fs.readFile(`.git/objects/${hash.slice(0, 2)}/${hash.slice(2)}`);
 
@@ -53,7 +54,7 @@ const catFile = Command.make(
     const [_, content] = decompressed.toString("utf-8").split("\0");
 
     if (pretty) {
-      yield* Console.log(content);
+      yield* terminal.display(content);
     }
   }),
 ).pipe(
