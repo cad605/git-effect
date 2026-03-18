@@ -5,7 +5,7 @@ import { Command, Flag } from "effect/unstable/cli";
 const init = Command.make(
   "init",
   {},
-  Effect.fn("git.init")(function* ({}) {
+  Effect.fn("git.init")(function* () {
     const fs = yield* FileSystem.FileSystem;
     const { verbose } = yield* git;
 
@@ -17,8 +17,6 @@ const init = Command.make(
     yield* fs.makeDirectory(".git/objects", { recursive: true });
     yield* fs.makeDirectory(".git/refs", { recursive: true });
     yield* fs.writeFileString(".git/HEAD", "ref: refs/heads/main\n");
-
-    yield* logger("Initialized git directory.");
 
     yield* logger("Initialized git directory", { success: true });
   }),
@@ -33,9 +31,14 @@ const init = Command.make(
   ]),
 );
 
+const verbose = Flag.boolean("verbose").pipe(
+  Flag.withAlias("v"),
+  Flag.withDescription("Print diagnostic output")
+)
+
 const git = Command.make("git").pipe(
   Command.withSharedFlags({
-    verbose: Flag.boolean("verbose"),
+    verbose,
   }),
   Command.withDescription("Git is a version control system."),
 );
