@@ -1,5 +1,5 @@
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { Effect, FileSystem } from "effect";
+import { Console, Effect, FileSystem } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { unzipSync  } from "node:zlib";
 
@@ -53,7 +53,7 @@ const catFile = Command.make(
     const [_, content] = decompressed.toString("utf-8").split("\0");
 
     if (pretty) {
-      yield* Effect.log(content);
+      yield* Console.log(content);
     }
   }),
 ).pipe(
