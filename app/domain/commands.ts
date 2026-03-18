@@ -115,13 +115,13 @@ const listTree = Command.make(
 
     const lines = tree.map((entry) => {
       if (nameOnly) {
-        return entry.name;
+        return `${entry.name}\n`;
       }
-
-      return `${entry.mode.padStart(6, "0")} ${entry.type} ${entry.sha}\t${entry.name}`;
+    
+      return `${entry.mode.padStart(6, "0")} ${entry.type} ${entry.sha}\t${entry.name}\n`;
     });
-
-    yield* terminal.display(lines.join("\n") + "\n");
+    
+    yield* terminal.display(lines.join(""));
 
     yield* Effect.logDebug("Done", { success: true });
   }),
