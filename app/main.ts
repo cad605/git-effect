@@ -9,16 +9,18 @@ const init = Command.make(
     const fs = yield* FileSystem.FileSystem;
     const { verbose } = yield* git;
 
-    const logger = Effect.logWithLevel(verbose ? "Debug" : "Warn");
-
-    yield* logger("Initializing git directory...");
+    if (verbose) {
+      yield* Effect.log("Initializing git directory...");
+    }
 
     yield* fs.makeDirectory(".git", { recursive: true });
     yield* fs.makeDirectory(".git/objects", { recursive: true });
     yield* fs.makeDirectory(".git/refs", { recursive: true });
     yield* fs.writeFileString(".git/HEAD", "ref: refs/heads/main\n");
 
-    yield* logger("Initialized git directory", { success: true });
+    if (verbose) {
+      yield* Effect.log("Initialized git directory", { success: true });
+    }
   }),
 ).pipe(
   Command.withAlias("init"),
