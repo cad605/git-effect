@@ -1,20 +1,49 @@
-import * as fs from "fs";
+import { BunRuntime, BunServices } from "@effect/platform-bun";
+import { Effect, FileSystem } from "effect";
+import { Command, Flag } from "effect/unstable/cli";
 
-const args = process.argv.slice(2);
-const command = args[0];
+const init = Command.make(
+  "init",
+  {},
+  Effect.fn("git.init")(function* ({}) {
+    const fs = yield* FileSystem.FileSystem;
+    const { verbose } = yield* git;
 
-switch (command) {
-  case "init":
-    // You can use print statements as follows for debugging, they'll be visible when running tests.
-    console.error("Logs from your program will appear here!");
+    const logger = Effect.logWithLevel(verbose ? "Debug" : "Info");
 
-    // TODO: Uncomment the code below to pass the first stage
-    // fs.mkdirSync(".git", { recursive: true });
-    // fs.mkdirSync(".git/objects", { recursive: true });
-    // fs.mkdirSync(".git/refs", { recursive: true });
-    // fs.writeFileSync(".git/HEAD", "ref: refs/heads/main\n");
-    // console.log("Initialized git directory");
-    break;
-  default:
-    throw new Error(`Unknown command ${command}`);
-}
+    yield* logger("Initializing git directory...");
+
+    yield* fs.makeDirectory(".git", { recursive: true });
+    yield* fs.makeDirectory(".git/objects", { recursive: true });
+    yield* fs.makeDirectory(".git/refs", { recursive: true });
+    yield* fs.writeFileString(".git/HEAD", "ref: refs/heads/main\n");
+
+    yield* logger("Initialized git directory.");
+
+    yield* logger("Initialized git directory", { success: true });
+  }),
+).pipe(
+  Command.withAlias("init"),
+  Command.withDescription("Initialize a new git repository"),
+  Command.withExamples([
+    {
+      command: "git init",
+      description: "Initialize a new git repository",
+    },
+  ]),
+);
+
+const git = Command.make("git").pipe(
+  Command.withSharedFlags({
+    verbose: Flag.boolean("verbose"),
+  }),
+  Command.withDescription("Git is a version control system."),
+);
+
+const program = Command.run(git.pipe(Command.withSubcommands([init])), {
+  version: "1.0.0",
+});
+
+const appLayer = BunServices.layer;
+
+program.pipe(Effect.provide(appLayer), BunRuntime.runMain);
