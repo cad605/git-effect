@@ -9,7 +9,7 @@ const init = Command.make(
     const fs = yield* FileSystem.FileSystem;
     const { verbose } = yield* git;
 
-    const logger = Effect.logWithLevel(verbose ? "Debug" : "Info");
+    const logger = Effect.logWithLevel(verbose ? "Debug" : "Warn");
 
     yield* logger("Initializing git directory...");
 
