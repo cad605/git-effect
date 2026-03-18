@@ -1,8 +1,8 @@
-import { Effect, FileSystem, Layer } from "effect";
+import { Effect, FileSystem, Layer, Schema } from "effect";
 
 import { Compression } from "../ports/compression.ts";
 import { Crypto } from "../ports/crypto.ts";
-import { Git, GitError } from "../ports/git.ts";
+import { Git, GitError, TreeEntry } from "../ports/git.ts";
 
 export const GitLive = Layer.effect(
   Git,
@@ -10,12 +10,6 @@ export const GitLive = Layer.effect(
     const fs = yield* FileSystem.FileSystem;
     const compression = yield* Compression;
     const crypto = yield* Crypto;
-
-    // #region agent log
-    yield* Effect.tryPromise(() => 
-      fetch('http://127.0.0.1:7650/ingest/37fde57d-7485-45a9-b10d-4c7c9101b241',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'40abb1'},body:JSON.stringify({sessionId:'40abb1',runId:'run1',hypothesisId:'1,2,3',location:'app/adapters/git.ts:13',message:'compression properties',data:{keys:Object.keys(compression)},timestamp:Date.now()})}).catch(()=>{})
-    );
-    // #endregion
 
     const init = Effect.fn("Git.init")(
       function* () {
@@ -84,10 +78,47 @@ export const GitLive = Layer.effect(
       ),
     );
 
+    const listTree = Effect.fn("Git.listTree")(
+      function* (hash: string) {
+        const content = yield* fs.readFile(`.git/objects/${hash.slice(0, 2)}/${hash.slice(2)}`);
+
+        const decompressed = yield* compression.unzip(Buffer.from(content));
+
+        let i = decompressed.indexOf(0) + 1;
+        const entries = [];
+
+        while (i < decompressed.length) {
+          const spaceIdx = decompressed.indexOf(32, i);
+          const mode = decompressed.toString("utf-8", i, spaceIdx);
+
+          const nullIdx = decompressed.indexOf(0, spaceIdx + 1);
+          const name = decompressed.toString("utf-8", spaceIdx + 1, nullIdx);
+
+          const shaBuffer = decompressed.subarray(nullIdx + 1, nullIdx + 21);
+          const sha = shaBuffer.toString("hex");
+
+          entries.push({ mode, name, sha });
+
+          i = nullIdx + 21;
+        }
+
+        return Schema.decodeUnknownSync(Schema.Array(TreeEntry))(entries);
+      },
+
+      Effect.catch(
+        Effect.fn(function* (cause) {
+          yield* Effect.logError(cause);
+
+          return yield* new GitError({ message: "Failed to list tree", cause });
+        }),
+      ),
+    );
+
     return Git.of({
       init,
       catFile,
       hashObject,
+      listTree,
     });
   }),
 );

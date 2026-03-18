@@ -16,6 +16,6 @@ export type CompressionShape = {
   zip: (buffer: Buffer<ArrayBuffer>) => Effect.Effect<Buffer<ArrayBuffer>, CompressionError, never>;
 };
 
-export class Compression extends ServiceMap.Service<Crypto, CompressionShape>()(
+export class Compression extends ServiceMap.Service<Compression, CompressionShape>()(
   "app/ports/Compression",
 ) {}

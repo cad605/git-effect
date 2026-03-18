@@ -3,7 +3,7 @@ import { Argument, Command, Flag } from "effect/unstable/cli";
 
 import { Git } from "../ports/git.ts";
 
-export const init = Command.make(
+const init = Command.make(
   "init",
   {},
   Effect.fn("cli.init")(function* () {
@@ -31,7 +31,7 @@ export const init = Command.make(
   ]),
 );
 
-export const catFile = Command.make(
+const catFile = Command.make(
   "cat-file",
   {
     pretty: Flag.boolean("pretty-print").pipe(
@@ -66,7 +66,7 @@ export const catFile = Command.make(
   ]),
 );
 
-export const hashObject = Command.make(
+const hashObject = Command.make(
   "hash-object",
   {
     write: Flag.boolean("write").pipe(
@@ -97,7 +97,37 @@ export const hashObject = Command.make(
   ]),
 );
 
-export const parent = Command.make("git").pipe(
+const listTree = Command.make(
+  "ls-tree",
+  {
+    nameOnly: Flag.boolean("name-only").pipe(
+      Flag.withDescription("Only list the names of the objects"),
+    ),
+    hash: Argument.string("hash").pipe(Argument.withDescription("Git Object SHA to list")),
+  },
+  Effect.fn("cli.ls-tree")(function* ({ nameOnly, hash }) {
+    const git = yield* Git;
+    const terminal = yield* Terminal.Terminal;
+
+    yield* Effect.logDebug("Listing tree...", { nameOnly, hash });
+
+    const tree = yield* git.listTree(hash);
+
+    const lines = tree.map((entry) => {
+      if (nameOnly) {
+        return entry.name;
+      }
+
+      return `${entry.mode.padStart(6, "0")} ${entry.type} ${entry.sha}\t${entry.name}`;
+    });
+
+    yield* terminal.display(lines.join("\n"));
+
+    yield* Effect.logDebug("Done", { success: true });
+  }),
+);
+
+const parent = Command.make("git").pipe(
   Command.withSharedFlags({
     verbose: Flag.boolean("verbose").pipe(
       Flag.withAlias("v"),
@@ -107,6 +137,9 @@ export const parent = Command.make("git").pipe(
   Command.withDescription("Git is a version control system."),
 );
 
-export const program = Command.run(parent.pipe(Command.withSubcommands([init, catFile, hashObject])), {
-  version: "1.0.0",
-});
+export const program = Command.run(
+  parent.pipe(Command.withSubcommands([init, catFile, hashObject, listTree])),
+  {
+    version: "1.0.0",
+  },
+);
