@@ -67,7 +67,7 @@ export const catFile = Command.make(
   ]),
 );
 
-export const parent = Command.make("parent").pipe(
+export const parent = Command.make("git").pipe(
   Command.withSharedFlags({
     verbose: Flag.boolean("verbose").pipe(
       Flag.withAlias("v"),
