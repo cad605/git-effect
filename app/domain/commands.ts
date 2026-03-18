@@ -10,7 +10,6 @@ export const init = Command.make(
     const git = yield* Git;
     const { verbose } = yield* parent;
 
-
     if (verbose) {
       yield* Effect.log("Initializing git directory...");
     }
@@ -47,9 +46,9 @@ export const catFile = Command.make(
 
     yield* Effect.logDebug("Reading file...", { hash, pretty });
 
-    const { type, content } = yield* git.catFile(hash);
+    const content = yield* git.catFile(hash);
 
-    yield* Effect.logDebug("Result...", { type, content });
+    yield* Effect.logDebug("Result...", { content });
 
     if (pretty) {
       yield* terminal.display(content);
@@ -67,6 +66,37 @@ export const catFile = Command.make(
   ]),
 );
 
+export const hashObject = Command.make(
+  "hash-object",
+  {
+    write: Flag.boolean("write").pipe(
+      Flag.withAlias("w"),
+      Flag.withDescription("Write the object to the .git/objects directory"),
+    ),
+    path: Argument.string("path").pipe(Argument.withDescription("The path to the git object file")),
+  },
+  Effect.fn("cli.hash-object")(function* ({ write, path }) {
+    const git = yield* Git;
+    const terminal = yield* Terminal.Terminal;
+
+    yield* Effect.logDebug("Hashing object...", { write, path });
+
+    const hash = yield* git.hashObject(path, write);
+
+    yield* terminal.display(hash);
+
+    yield* Effect.logDebug("Done", { success: true });
+  }),
+).pipe(
+  Command.withDescription("Hash an object and optionally write it to the object database"),
+  Command.withExamples([
+    {
+      command: "git hash-object -w <content>",
+      description: "Hash an object and write it to the object database",
+    },
+  ]),
+);
+
 export const parent = Command.make("git").pipe(
   Command.withSharedFlags({
     verbose: Flag.boolean("verbose").pipe(
@@ -77,6 +107,6 @@ export const parent = Command.make("git").pipe(
   Command.withDescription("Git is a version control system."),
 );
 
-export const root = Command.run(parent.pipe(Command.withSubcommands([init, catFile])), {
+export const root = Command.run(parent.pipe(Command.withSubcommands([init, catFile, hashObject])), {
   version: "1.0.0",
 });

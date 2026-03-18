@@ -1,9 +1,20 @@
-import { Effect, ServiceMap } from "effect";
+import { Effect, Schema, ServiceMap } from "effect";
+
+export class CompressionError extends Schema.TaggedErrorClass("CompressionError")(
+  "CompressionError",
+  {
+    message: Schema.String,
+    cause: Schema.Defect,
+  },
+) {}
 
 export type CompressionShape = {
-  unzip: (compressed: Buffer<ArrayBuffer>) => Effect.Effect<Buffer<ArrayBuffer>, Error, never>;
+  unzip: (
+    buffer: Buffer<ArrayBuffer>,
+  ) => Effect.Effect<Buffer<ArrayBuffer>, CompressionError, never>;
+  zip: (buffer: Buffer<ArrayBuffer>) => Effect.Effect<Buffer<ArrayBuffer>, CompressionError, never>;
 };
 
-export class Compression extends ServiceMap.Service<Compression, CompressionShape>()(
-  "app/ports/Compression",
+export class Compression extends ServiceMap.Service<Crypto, CompressionShape>()(
+  "app/ports/Crypto",
 ) {}
