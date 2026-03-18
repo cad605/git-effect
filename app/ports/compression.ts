@@ -12,6 +12,7 @@ export type CompressionShape = {
   unzip: (
     buffer: Buffer<ArrayBuffer>,
   ) => Effect.Effect<Buffer<ArrayBuffer>, CompressionError, never>;
+
   zip: (buffer: Buffer<ArrayBuffer>) => Effect.Effect<Buffer<ArrayBuffer>, CompressionError, never>;
 };
 
