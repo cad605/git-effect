@@ -1,6 +1,7 @@
 import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Effect, FileSystem } from "effect";
-import { Command, Flag } from "effect/unstable/cli";
+import { Argument, Command, Flag } from "effect/unstable/cli";
+import { unzipSync  } from "node:zlib";
 
 const init = Command.make(
   "init",
@@ -23,7 +24,7 @@ const init = Command.make(
     }
   }),
 ).pipe(
-  Command.withAlias("init"),
+  Command.withAlias("i"),
   Command.withDescription("Initialize a new git repository"),
   Command.withExamples([
     {
@@ -33,19 +34,49 @@ const init = Command.make(
   ]),
 );
 
-const verbose = Flag.boolean("verbose").pipe(
-  Flag.withAlias("v"),
-  Flag.withDescription("Print diagnostic output")
-)
+const catFile = Command.make(
+  "cat-file",
+  {
+    pretty: Flag.boolean("pretty-print").pipe(
+      Flag.withAlias("p"),
+      Flag.withDescription("Pretty print the content of the Git object"),
+    ),
+    hash: Argument.string("hash").pipe(Argument.withDescription("Git Object SHA to cat")),
+  },
+  Effect.fn("git.cat-file")(function* ({ pretty, hash }) {
+    const fs = yield* FileSystem.FileSystem;
+
+    const compressed = yield* fs.readFile(`.git/objects/${hash.slice(0, 2)}/${hash.slice(2)}`);
+
+    const decompressed = unzipSync(compressed);
+
+    const [_, content] = decompressed.toString("utf-8").split("\0");
+
+    if (pretty) {
+      yield* Effect.log(content);
+    }
+  }),
+).pipe(
+  Command.withDescription("View the type, size, and content of a Git object"),
+  Command.withExamples([
+    {
+      command: "git cat-file -p <blob_sha>",
+      description: "View the content of the Git Object identified by the provided SHA",
+    },
+  ]),
+);
 
 const git = Command.make("git").pipe(
   Command.withSharedFlags({
-    verbose,
+    verbose: Flag.boolean("verbose").pipe(
+      Flag.withAlias("v"),
+      Flag.withDescription("Print diagnostic output"),
+    ),
   }),
   Command.withDescription("Git is a version control system."),
 );
 
-const program = Command.run(git.pipe(Command.withSubcommands([init])), {
+const program = Command.run(git.pipe(Command.withSubcommands([init, catFile])), {
   version: "1.0.0",
 });
 
