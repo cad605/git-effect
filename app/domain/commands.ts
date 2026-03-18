@@ -118,10 +118,10 @@ const listTree = Command.make(
         return entry.name;
       }
 
-      return `${entry.mode.padStart(6, "0")} ${entry.type} ${entry.sha}\t${entry.name}`;
+      return `${entry.mode.padStart(6, "0")} ${entry.type} ${entry.sha}\t${entry.name}\n`;
     });
 
-    yield* terminal.display(lines.join("\n"));
+    yield* terminal.display(lines.join(""));
 
     yield* Effect.logDebug("Done", { success: true });
   }),
