@@ -112,10 +112,12 @@ export const GitService = Layer.effect(
 
         const object = yield* parseGitObject(decompressed);
 
-        return Match.valueTags(object, {
-          TreeObject: (tree) => tree.entries,
-          BlobObject: () => yield* Effect.die(new Error("Expected tree object, got blob object")),
-          CommitObject: () => yield* Effect.die(new Error("Expected tree object, got commit object")),
+        return yield* Match.valueTags(object, {
+          BlobObject: () =>
+            Effect.fail(new GitInputPortError({ message: "not a tree object", cause: undefined })),
+          TreeObject: ({ entries }) => Effect.succeed(entries),
+          CommitObject: () =>
+            Effect.fail(new GitInputPortError({ message: "not a tree object", cause: undefined })),
         });
       },
 
