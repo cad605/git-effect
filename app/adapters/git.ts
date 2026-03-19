@@ -13,6 +13,22 @@ const readBytes = (buffer: Buffer, offset: number, length: number) => {
   return [buffer.subarray(offset, offset + length), offset + length] as const;
 };
 
+export const parseTreeEntries = Effect.fn("parseTreeEntries")(function* (buffer: Buffer) {
+  const start = buffer.indexOf(0x00) + 1;
+
+  const entries = Array.unfold(start, (offset) => {
+    if (offset >= buffer.length) return Option.none();
+
+    const [mode, afterMode] = readUntil(buffer, offset, 0x20);
+    const [name, afterName] = readUntil(buffer, afterMode, 0x00);
+    const [shaBytes, nextOffset] = readBytes(buffer, afterName, 20);
+
+    return Option.some([{ mode, name, sha: shaBytes.toString("hex") }, nextOffset]);
+  });
+
+  return yield* Schema.decodeUnknownEffect(Schema.Array(TreeEntry))(entries);
+});
+
 export const GitLive = Layer.effect(
   Git,
   Effect.gen(function* () {
@@ -87,32 +103,6 @@ export const GitLive = Layer.effect(
       ),
     );
 
-    const parseTreeEntries = Effect.fn("Git.parseTreeEntries")(
-      function* (buffer: Buffer) {
-        const start = buffer.indexOf(0x00) + 1;
-
-        const entries = Array.unfold(start, (offset) => {
-          if (offset >= buffer.length) return Option.none();
-
-          const [mode, afterMode] = readUntil(buffer, offset, 0x20);
-          const [name, afterName] = readUntil(buffer, afterMode, 0x00);
-          const [shaBytes, nextOffset] = readBytes(buffer, afterName, 20);
-
-          return Option.some([{ mode, name, sha: shaBytes.toString("hex") }, nextOffset]);
-        });
-
-        return yield* Schema.decodeUnknownEffect(Schema.Array(TreeEntry))(entries);
-      },
-
-      Effect.catch(
-        Effect.fn(function* (cause) {
-          yield* Effect.logError(cause);
-
-          return yield* new GitError({ message: "Failed to parse tree entries", cause });
-        }),
-      ),
-    );
-
     const listTree = Effect.fn("Git.listTree")(
       function* (hash: string) {
         const compressed = yield* fs.readFile(`.git/objects/${hash.slice(0, 2)}/${hash.slice(2)}`);
@@ -121,6 +111,7 @@ export const GitLive = Layer.effect(
 
         return yield* parseTreeEntries(decompressed);
       },
+
       Effect.catch(
         Effect.fn(function* (cause) {
           yield* Effect.logError(cause);
@@ -130,11 +121,77 @@ export const GitLive = Layer.effect(
       ),
     );
 
+    const writeTreeAt: (dirPath: string) => Effect.Effect<string, GitError> = Effect.fn(
+      "Git.writeTreeAt",
+    )(
+      function* (dirPath: string) {
+        const dirEntries = yield* fs.readDirectory(dirPath);
+        const sorted = [...dirEntries].sort();
+
+        const entries: globalThis.Array<{ mode: string; name: string; sha: string }> = [];
+
+        for (const name of sorted) {
+          if (name === ".git") continue;
+
+          const fullPath = `${dirPath}/${name}`;
+          const stat = yield* fs.stat(fullPath);
+
+          if (stat.type === "Directory") {
+            const sha = yield* writeTreeAt(fullPath);
+            entries.push({ mode: "40000", name, sha });
+          } else if (stat.type === "File") {
+            const sha = yield* hashObject(fullPath, true);
+            entries.push({ mode: "100644", name, sha });
+          }
+        }
+
+        const buffers = entries.map(({ mode, name, sha }) =>
+          Buffer.concat([Buffer.from(`${mode} ${name}\0`), Buffer.from(sha, "hex")]),
+        );
+        const body = Buffer.concat(buffers);
+        const header = Buffer.from(`tree ${body.length}\0`);
+        const payload = Buffer.concat([header, body]);
+
+        const hash = yield* crypto.hash(payload);
+        const compressed = yield* compression.zip(payload);
+        const prefix = hash.slice(0, 2);
+        const suffix = hash.slice(2);
+
+        yield* fs.makeDirectory(`.git/objects/${prefix}`, { recursive: true });
+        yield* fs.writeFile(`.git/objects/${prefix}/${suffix}`, compressed);
+
+        return hash;
+      },
+
+      Effect.catch(
+        Effect.fn(function* (cause) {
+          yield* Effect.logError(cause);
+
+          return yield* new GitError({ message: "Failed to write tree", cause });
+        }),
+      ),
+    );
+
+    const writeTree = Effect.fn("Git.writeTree")(
+      function* () {
+        return yield* writeTreeAt(".");
+      },
+
+      Effect.catch(
+        Effect.fn(function* (cause) {
+          yield* Effect.logError(cause);
+
+          return yield* new GitError({ message: "Failed to write tree", cause });
+        }),
+      ),
+    );
+
     return Git.of({
       init,
       catFile,
       hashObject,
       listTree,
+      writeTree,
     });
   }),
 );

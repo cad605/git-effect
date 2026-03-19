@@ -125,6 +125,35 @@ const listTree = Command.make(
 
     yield* Effect.logDebug("Done", { success: true });
   }),
+).pipe(
+  Command.withDescription("List the contents of a tree object"),
+  Command.withExamples([
+    {
+      command: "git ls-tree <tree_sha>",
+      description: "List the contents of a tree object given its SHA",
+    },
+  ]),
+);
+
+const writeTree = Command.make(
+  "write-tree",
+  {},
+  Effect.fn("cli.write-tree")(function* () {
+    const git = yield* Git;
+    const terminal = yield* Terminal.Terminal;
+
+    const hash = yield* git.writeTree();
+
+    yield* terminal.display(hash);
+  }),
+).pipe(
+  Command.withDescription('Create a tree object from the current state of the "staging area"'),
+  Command.withExamples([
+    {
+      command: "git write-tree",
+      description: 'Create a tree object from the current state of the "staging area"',
+    },
+  ]),
 );
 
 const parent = Command.make("git").pipe(
@@ -138,7 +167,7 @@ const parent = Command.make("git").pipe(
 );
 
 export const program = Command.run(
-  parent.pipe(Command.withSubcommands([init, catFile, hashObject, listTree])),
+  parent.pipe(Command.withSubcommands([init, catFile, hashObject, listTree, writeTree])),
   {
     version: "1.0.0",
   },

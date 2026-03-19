@@ -39,6 +39,7 @@ export type GitShape = {
   catFile: (hash: string) => Effect.Effect<string, GitError, never>;
   hashObject: (path: string, write: boolean) => Effect.Effect<string, GitError, never>;
   listTree: (hash: string) => Effect.Effect<ReadonlyArray<TreeEntry>, GitError, never>;
+  writeTree: () => Effect.Effect<string, GitError, never>;
 };
 
 export class Git extends ServiceMap.Service<Git, GitShape>()("app/ports/Git") {}

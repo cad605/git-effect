@@ -8,6 +8,9 @@
 - Prefer `Schema.decodeTo` with `SchemaGetter.transform` for deriving fields from other fields, over class getters
 - Prefer `Schema.decodeUnknownEffect` (yielded) over `Schema.decodeUnknownSync` to keep errors in the Effect channel
 - Service methods return structured data; the command/CLI layer decides how to format output based on flags
+- Extract complex parsing logic into named helper functions to keep service method handlers clean
+- Prefer `Array.unfold` with `Option.some`/`Option.none` over mutable while/for loops for iterative data extraction
+- Use composable parsing primitives (e.g., `readUntil`/`readBytes`) returning `[value, nextOffset]` tuples for binary buffer parsing
 - Implement plans as written; do not edit the plan file during execution
 - Remove debug instrumentation after fixes are done
 

@@ -10,7 +10,7 @@ export const CryptoLive = Layer.effect(
     const hash = Effect.fn("Crypto.hash")(function* (buffer: Buffer) {
       return yield* Effect.try({
         try: () => createHash("sha1").update(buffer).digest("hex"),
-        catch: (e) => new CryptoError({ message: "Hashing failed", cause: e }),
+        catch: (cause) => new CryptoError({ message: "Hashing failed", cause }),
       });
     });
 
