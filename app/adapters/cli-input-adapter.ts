@@ -45,7 +45,7 @@ const catFile = Command.make(
     yield* Effect.logDebug("Result...", { gitObject });
 
     if (pretty) {
-      return Match.valueTags(gitObject, {
+      return yield* Match.valueTags(gitObject, {
         BlobObject: (blob) => terminal.display(blob.content.toString()),
         TreeObject: (tree) =>
           Effect.forEach(
