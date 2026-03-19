@@ -1,4 +1,4 @@
-import { Array, Effect, FileSystem, Layer, Option, Schema } from "effect";
+import { Array, Effect, FileSystem, Layer, Option, Schema, Stream } from "effect";
 
 import { Compression } from "../ports/compression.ts";
 import { Crypto } from "../ports/crypto.ts";
@@ -121,29 +121,32 @@ export const GitLive = Layer.effect(
       ),
     );
 
-    const writeTreeAt: (dirPath: string) => Effect.Effect<string, GitError> = Effect.fn(
-      "Git.writeTreeAt",
+    const writeTree: (path: string) => Effect.Effect<string, GitError, never> = Effect.fn(
+      "Git.writeTree",
     )(
-      function* (dirPath: string) {
-        const dirEntries = yield* fs.readDirectory(dirPath);
-        const sorted = [...dirEntries].sort();
+      function* (path: string) {
+        const directory = yield* fs.readDirectory(path);
+        const sorted = directory.sort();
 
-        const entries: globalThis.Array<{ mode: string; name: string; sha: string }> = [];
+        const entries = yield* Stream.fromIterable(sorted).pipe(
+          Stream.filter((name) => name !== ".git"),
+          Stream.mapEffect((name) => {
+            const fullPath = `${path}/${name}`;
 
-        for (const name of sorted) {
-          if (name === ".git") continue;
+            return Effect.gen(function* () {
+              const { type } = yield* fs.stat(fullPath);
 
-          const fullPath = `${dirPath}/${name}`;
-          const stat = yield* fs.stat(fullPath);
+              if (type === "Directory") {
+                const sha = yield* writeTree(fullPath);
+                return { mode: "40000", name, sha };
+              }
 
-          if (stat.type === "Directory") {
-            const sha = yield* writeTreeAt(fullPath);
-            entries.push({ mode: "40000", name, sha });
-          } else if (stat.type === "File") {
-            const sha = yield* hashObject(fullPath, true);
-            entries.push({ mode: "100644", name, sha });
-          }
-        }
+              const sha = yield* hashObject(fullPath, true);
+              return { mode: "100644", name, sha };
+            });
+          }),
+          Stream.runCollect,
+        );
 
         const buffers = entries.map(({ mode, name, sha }) =>
           Buffer.concat([Buffer.from(`${mode} ${name}\0`), Buffer.from(sha, "hex")]),
@@ -161,20 +164,6 @@ export const GitLive = Layer.effect(
         yield* fs.writeFile(`.git/objects/${prefix}/${suffix}`, compressed);
 
         return hash;
-      },
-
-      Effect.catch(
-        Effect.fn(function* (cause) {
-          yield* Effect.logError(cause);
-
-          return yield* new GitError({ message: "Failed to write tree", cause });
-        }),
-      ),
-    );
-
-    const writeTree = Effect.fn("Git.writeTree")(
-      function* () {
-        return yield* writeTreeAt(".");
       },
 
       Effect.catch(

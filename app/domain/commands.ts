@@ -137,14 +137,23 @@ const listTree = Command.make(
 
 const writeTree = Command.make(
   "write-tree",
-  {},
-  Effect.fn("cli.write-tree")(function* () {
+  {
+    path: Argument.string("path").pipe(
+      Argument.withDescription("The path to the tree object"),
+      Argument.withDefault("."),
+    ),
+  },
+  Effect.fn("cli.write-tree")(function* ({ path }) {
     const git = yield* Git;
     const terminal = yield* Terminal.Terminal;
 
-    const hash = yield* git.writeTree();
+    yield* Effect.logDebug("Writing tree...", { path });
+
+    const hash = yield* git.writeTree(path);
 
     yield* terminal.display(hash);
+
+    yield* Effect.logDebug("Done", { success: true });
   }),
 ).pipe(
   Command.withDescription('Create a tree object from the current state of the "staging area"'),
