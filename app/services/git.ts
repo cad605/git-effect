@@ -114,8 +114,8 @@ export const GitService = Layer.effect(
 
         return Match.valueTags(object, {
           TreeObject: (tree) => tree.entries,
-          CommitObject: () => yield * Effect.fail(new Error("Expected tree object, got commit object")),
-          BlobObject: () => yield * Effect.fail(new Error("Expected tree object, got blob object")),
+          CommitObject: () => yield* Effect.fail(new Error("Expected tree object, got commit object")),
+          BlobObject: () => yield* Effect.fail(new Error("Expected tree object, got blob object")),
         });
       },
 
