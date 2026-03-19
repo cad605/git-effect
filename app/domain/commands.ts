@@ -111,15 +111,17 @@ const listTree = Command.make(
 
     yield* Effect.logDebug("Listing tree...", { nameOnly, hash });
 
-    const tree = yield* git.listTree(hash);
+    const entries = yield* git.listTree(hash);
 
-    yield* Effect.forEach(tree, ({ mode, type, sha, name }) => {
-      const line = nameOnly
-        ? `${name}\n`
-        : `${mode.padStart(6, "0")} ${type} ${sha}\t${name}\n`;
+    yield* Effect.forEach(
+      entries,
+      ({ mode, type, sha, name }) => {
+        const line = nameOnly ? `${name}\n` : `${mode.padStart(6, "0")} ${type} ${sha}\t${name}\n`;
 
-      return terminal.display(line);
-    }, { discard: true });
+        return terminal.display(line);
+      },
+      { discard: true },
+    );
 
     yield* Effect.logDebug("Done", { success: true });
   }),

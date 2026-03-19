@@ -1,4 +1,4 @@
-import { Array as Arr, Effect, FileSystem, Layer, Option, Schema } from "effect";
+import { Array, Effect, FileSystem, Layer, Option, Schema } from "effect";
 
 import { Compression } from "../ports/compression.ts";
 import { Crypto } from "../ports/crypto.ts";
@@ -11,23 +11,6 @@ const readUntil = (buffer: Buffer, offset: number, delimiter: number) => {
 
 const readBytes = (buffer: Buffer, offset: number, length: number) => {
   return [buffer.subarray(offset, offset + length), offset + length] as const;
-};
-
-const parseTreeEntries = (buffer: Buffer) => {
-  const start = buffer.indexOf(0x00) + 1;
-
-  return Arr.unfold(start, (offset) => {
-    if (offset >= buffer.length) return Option.none();
-
-    const [mode, afterMode] = readUntil(buffer, offset, 0x20);
-    const [name, afterName] = readUntil(buffer, afterMode, 0x00);
-    const [shaBytes, afterSha] = readBytes(buffer, afterName, 20);
-
-    return Option.some([
-      { mode, name, sha: shaBytes.toString("hex") },
-      afterSha,
-    ] as const);
-  });
 };
 
 export const GitLive = Layer.effect(
@@ -104,13 +87,39 @@ export const GitLive = Layer.effect(
       ),
     );
 
+    const parseTreeEntries = Effect.fn("Git.parseTreeEntries")(
+      function* (buffer: Buffer) {
+        const start = buffer.indexOf(0x00) + 1;
+
+        const entries = Array.unfold(start, (offset) => {
+          if (offset >= buffer.length) return Option.none();
+
+          const [mode, afterMode] = readUntil(buffer, offset, 0x20);
+          const [name, afterName] = readUntil(buffer, afterMode, 0x00);
+          const [shaBytes, nextOffset] = readBytes(buffer, afterName, 20);
+
+          return Option.some([{ mode, name, sha: shaBytes.toString("hex") }, nextOffset]);
+        });
+
+        return yield* Schema.decodeUnknownEffect(Schema.Array(TreeEntry))(entries);
+      },
+
+      Effect.catch(
+        Effect.fn(function* (cause) {
+          yield* Effect.logError(cause);
+
+          return yield* new GitError({ message: "Failed to parse tree entries", cause });
+        }),
+      ),
+    );
+
     const listTree = Effect.fn("Git.listTree")(
       function* (hash: string) {
         const compressed = yield* fs.readFile(`.git/objects/${hash.slice(0, 2)}/${hash.slice(2)}`);
-        const decompressed = yield* compression.unzip(Buffer.from(compressed));
-        const entries = parseTreeEntries(decompressed);
 
-        return yield* Schema.decodeUnknownEffect(Schema.Array(TreeEntry))(entries);
+        const decompressed = yield* compression.unzip(Buffer.from(compressed));
+
+        return yield* parseTreeEntries(decompressed);
       },
       Effect.catch(
         Effect.fn(function* (cause) {
