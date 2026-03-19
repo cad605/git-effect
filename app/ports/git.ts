@@ -2,6 +2,8 @@ import { Effect, Schema, SchemaGetter, ServiceMap } from "effect";
 
 const TreeMode = Schema.Literals(["100644", "100755", "120000", "40000"]);
 
+const TreeType = Schema.Literals(["tree", "blob"]);
+
 const TreeEntryFrom = Schema.Struct({
   mode: TreeMode,
   name: Schema.String,
@@ -12,14 +14,14 @@ const TreeEntryTo = Schema.Struct({
   mode: TreeMode,
   name: Schema.String,
   sha: Schema.String,
-  type: Schema.Literals(["tree", "blob"]),
+  type: TreeType,
 });
 
 export const TreeEntry = TreeEntryFrom.pipe(
   Schema.decodeTo(TreeEntryTo, {
     decode: SchemaGetter.transform((from) => ({
       ...from,
-      type: from.mode === "40000" ? ("tree" as const) : ("blob" as const),
+      type: from.mode === "40000" ? TreeType.makeUnsafe("tree") : TreeType.makeUnsafe("blob"),
     })),
     encode: SchemaGetter.transform(({ type: _, ...rest }) => rest),
   }),

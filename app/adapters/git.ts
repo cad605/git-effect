@@ -1,8 +1,34 @@
-import { Effect, FileSystem, Layer, Schema } from "effect";
+import { Array as Arr, Effect, FileSystem, Layer, Option, Schema } from "effect";
 
 import { Compression } from "../ports/compression.ts";
 import { Crypto } from "../ports/crypto.ts";
 import { Git, GitError, TreeEntry } from "../ports/git.ts";
+
+const readUntil = (buffer: Buffer, offset: number, delimiter: number) => {
+  const idx = buffer.indexOf(delimiter, offset);
+  return [buffer.toString("utf-8", offset, idx), idx + 1] as const;
+};
+
+const readBytes = (buffer: Buffer, offset: number, length: number) => {
+  return [buffer.subarray(offset, offset + length), offset + length] as const;
+};
+
+const parseTreeEntries = (buffer: Buffer) => {
+  const start = buffer.indexOf(0x00) + 1;
+
+  return Arr.unfold(start, (offset) => {
+    if (offset >= buffer.length) return Option.none();
+
+    const [mode, afterMode] = readUntil(buffer, offset, 0x20);
+    const [name, afterName] = readUntil(buffer, afterMode, 0x00);
+    const [shaBytes, afterSha] = readBytes(buffer, afterName, 20);
+
+    return Option.some([
+      { mode, name, sha: shaBytes.toString("hex") },
+      afterSha,
+    ] as const);
+  });
+};
 
 export const GitLive = Layer.effect(
   Git,
@@ -80,31 +106,12 @@ export const GitLive = Layer.effect(
 
     const listTree = Effect.fn("Git.listTree")(
       function* (hash: string) {
-        const content = yield* fs.readFile(`.git/objects/${hash.slice(0, 2)}/${hash.slice(2)}`);
+        const compressed = yield* fs.readFile(`.git/objects/${hash.slice(0, 2)}/${hash.slice(2)}`);
+        const decompressed = yield* compression.unzip(Buffer.from(compressed));
+        const entries = parseTreeEntries(decompressed);
 
-        const decompressed = yield* compression.unzip(Buffer.from(content));
-
-        let i = decompressed.indexOf(0) + 1;
-        const entries = [];
-
-        while (i < decompressed.length) {
-          const spaceIdx = decompressed.indexOf(32, i);
-          const mode = decompressed.toString("utf-8", i, spaceIdx);
-
-          const nullIdx = decompressed.indexOf(0, spaceIdx + 1);
-          const name = decompressed.toString("utf-8", spaceIdx + 1, nullIdx);
-
-          const shaBuffer = decompressed.subarray(nullIdx + 1, nullIdx + 21);
-          const sha = shaBuffer.toString("hex");
-
-          entries.push({ mode, name, sha });
-
-          i = nullIdx + 21;
-        }
-
-        return Schema.decodeUnknownSync(Schema.Array(TreeEntry))(entries);
+        return yield* Schema.decodeUnknownEffect(Schema.Array(TreeEntry))(entries);
       },
-
       Effect.catch(
         Effect.fn(function* (cause) {
           yield* Effect.logError(cause);

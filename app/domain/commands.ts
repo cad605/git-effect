@@ -113,15 +113,13 @@ const listTree = Command.make(
 
     const tree = yield* git.listTree(hash);
 
-    const lines = tree.map((entry) => {
-      if (nameOnly) {
-        return `${entry.name}\n`;
-      }
-    
-      return `${entry.mode.padStart(6, "0")} ${entry.type} ${entry.sha}\t${entry.name}\n`;
-    });
-    
-    yield* terminal.display(lines.join(""));
+    yield* Effect.forEach(tree, ({ mode, type, sha, name }) => {
+      const line = nameOnly
+        ? `${name}\n`
+        : `${mode.padStart(6, "0")} ${type} ${sha}\t${name}\n`;
+
+      return terminal.display(line);
+    }, { discard: true });
 
     yield* Effect.logDebug("Done", { success: true });
   }),
