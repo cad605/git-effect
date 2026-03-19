@@ -83,9 +83,10 @@ const parseCommitBody = Effect.fn("parseCommitBody")(function* (body: Buffer) {
 export const parseGitObject = Effect.fn("parseGitObject")(function* (raw: Buffer) {
   const nullIndex = raw.indexOf(0x00);
 
-  const type = yield* Schema.decodeUnknownEffect(ObjectType)(
-    raw.subarray(0, nullIndex).toString().split(" "),
-  );
+  const header = raw.subarray(0, nullIndex).toString();
+  const [typeString] = header.split(" ", 1);
+
+  const type = yield* Schema.decodeUnknownEffect(ObjectType)(typeString);
 
   const body = raw.subarray(nullIndex + 1);
 
