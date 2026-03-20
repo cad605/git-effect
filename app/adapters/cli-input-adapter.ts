@@ -53,7 +53,7 @@ const catFile = Command.make(
               terminal.display(`${mode.padStart(6, "0")} ${type} ${hash}\t${name}\n`),
             { discard: true },
           ),
-        CommitObject: (commit) => terminal.display(yield * CommitObject.serializeBody(commit)),
+        CommitObject: (commit) => terminal.display(yield* CommitObject.serializeBody(commit)),
       });
     }
 
