@@ -4,6 +4,7 @@ import { Argument, Command, Flag } from "effect/unstable/cli";
 import { FilePath } from "../domain/models/file-path.ts";
 import { ObjectHash } from "../domain/models/object-hash.ts";
 import { GitInputPort } from "../ports/git-input-port.ts";
+import { CommitObject } from "../domain/models/commit-object.ts";
 
 const init = Command.make(
   "init",
@@ -53,7 +54,7 @@ const catFile = Command.make(
               terminal.display(`${mode.padStart(6, "0")} ${type} ${hash}\t${name}\n`),
             { discard: true },
           ),
-        CommitObject: (commit) => terminal.display(yield* CommitObject.serializeBody(commit)),
+        CommitObject: (commit) => terminal.display(yield* CommitObject.formatBody(commit)),
       });
     }
 
