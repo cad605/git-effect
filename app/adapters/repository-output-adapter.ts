@@ -1,6 +1,6 @@
 import { Array, Effect, FileSystem, Layer, Order, Path, pipe } from "effect";
 
-import { parseObjectLoosePath } from "../domain/lib/parse-object-loose-path.ts";
+import { splitObjectLoosePath } from "../domain/lib/split-object-loose-path.ts";
 import { EntryName } from "../domain/models/entry-name.ts";
 import { FilePath } from "../domain/models/file-path.ts";
 import {
@@ -37,7 +37,7 @@ const makeImpl = Effect.gen(function*() {
     "RepositoryOutputAdapter.readObject",
   )(
     function*({ hash }) {
-      const { prefix, suffix } = parseObjectLoosePath(hash);
+      const { prefix, suffix } = splitObjectLoosePath(hash);
 
       const content = yield* fs.readFile(path.join(".git", "objects", prefix, suffix));
 
@@ -54,7 +54,7 @@ const makeImpl = Effect.gen(function*() {
     "RepositoryOutputAdapter.writeObject",
   )(
     function*({ hash, content }) {
-      const { prefix, suffix } = parseObjectLoosePath(hash);
+      const { prefix, suffix } = splitObjectLoosePath(hash);
 
       yield* fs.makeDirectory(path.join(".git", "objects", prefix), { recursive: true });
 

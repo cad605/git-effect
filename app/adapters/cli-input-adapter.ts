@@ -120,7 +120,7 @@ const listTree = Command.make(
 
     yield* Effect.logDebug("Listing tree...", { nameOnly, hash });
 
-    const entries = yield* git.listTree({ hash: ObjectHash.makeUnsafe(hash) });
+    const { entries } = yield* git.listTree({ hash: ObjectHash.makeUnsafe(hash) });
 
     yield* Effect.forEach(
       entries,

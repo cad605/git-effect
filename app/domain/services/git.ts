@@ -70,10 +70,10 @@ const makeImpl = Effect.gen(function*() {
       const object = yield* parseRawObject(content);
 
       if (object._tag !== "TreeObject") {
-        return yield* Effect.fail(new Error("Not a tree object."));
+        return yield* Effect.fail(new Error("Object is not a tree object."));
       }
 
-      return object.entries;
+      return object;
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {

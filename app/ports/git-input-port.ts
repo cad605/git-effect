@@ -3,7 +3,7 @@ import { type Effect, Schema, ServiceMap } from "effect";
 import type { FilePath } from "../domain/models/file-path.ts";
 import type { ObjectHash } from "../domain/models/object-hash.ts";
 import type { Object } from "../domain/models/object.ts";
-import type { TreeEntry } from "../domain/models/tree-object.ts";
+import type { TreeObject } from "../domain/models/tree-object.ts";
 
 export class GitInputPortError extends Schema.TaggedErrorClass("GitInputPortError")(
   "GitInputPortError",
@@ -30,7 +30,7 @@ export interface GitInputPortShape {
     hash,
   }: {
     hash: ObjectHash;
-  }) => Effect.Effect<ReadonlyArray<TreeEntry>, GitInputPortError, never>;
+  }) => Effect.Effect<TreeObject, GitInputPortError, never>;
 
   writeTree: ({ path }: { path: FilePath }) => Effect.Effect<ObjectHash, GitInputPortError, never>;
 

@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 
 export const ObjectParseErrorReason = Schema.Literals([
-  "MissingObjectHeaderNul",
+  "MissingObjectHeaderNull",
   "InvalidObjectHeader",
   "TreeMissingDelimiter",
   "TreeTruncatedHash",

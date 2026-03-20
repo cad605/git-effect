@@ -1,4 +1,4 @@
-import { Array, Effect, Schema, String } from "effect";
+import { Effect, Match, Schema, String } from "effect";
 
 import { CommitObject } from "../models/commit-object.ts";
 import { ObjectHash } from "../models/object-hash.ts";
@@ -7,69 +7,107 @@ import { ObjectParseError } from "../models/object-parse-error.ts";
 export const parseCommitBody = Effect.fn("parseCommitBody")(function*(body: Buffer) {
   const content = body.toString("utf8");
 
-  if (!content.includes("\n\n")) {
-    return yield* Effect.fail(
-      new ObjectParseError({
-        reason: "CommitMalformedHeaders",
-        detail: "Commit body is missing a blank line between headers and message.",
-      }),
-    );
-  }
-
   const [metadata, ...messages] = String.split("\n\n")(content);
 
-  if (!metadata) {
-    return yield* Effect.fail(
-      new ObjectParseError({
-        reason: "CommitMalformedHeaders",
-        detail: "Commit metadata section is missing.",
-      }),
-    );
-  }
+  let tree: ObjectHash | undefined;
+  const parents: Array<ObjectHash> = [];
+  let author: string | undefined;
+  let committer: string | undefined;
 
-  const message = Array.join("\n\n")(messages).trimEnd();
+  yield* Effect.forEach(
+    String.linesIterator(metadata),
+    Effect.fnUntraced(function*(line) {
+      yield* Match.value(line).pipe(
+        Match.when(
+          String.startsWith("tree "),
+          Effect.fnUntraced(function*() {
+            if (tree) {
+              return yield* Effect.fail(
+                new ObjectParseError({
+                  reason: "CommitMalformedHeaders",
+                  detail: "Commit contains duplicate 'tree' headers.",
+                }),
+              );
+            }
 
-  const [treeLine, ...rest] = String.split("\n")(metadata);
+            tree = yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("tree ".length)(line));
+          }),
+        ),
+        Match.when(
+          String.startsWith("parent "),
+          Effect.fnUntraced(function*() {
+            parents.push(yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("parent ".length)(line)));
+          }),
+        ),
+        Match.when(
+          String.startsWith("author "),
+          Effect.fnUntraced(function*() {
+            if (author) {
+              return yield* Effect.fail(
+                new ObjectParseError({
+                  reason: "CommitMalformedHeaders",
+                  detail: "Commit contains duplicate 'author' headers.",
+                }),
+              );
+            }
 
-  if (!treeLine?.startsWith("tree ")) {
-    return yield* Effect.fail(
-      new ObjectParseError({
-        reason: "CommitMalformedHeaders",
-        detail: `Expected first commit header to start with 'tree ', received '${treeLine}'.`,
-      }),
-    );
-  }
+            author = String.slice("author ".length)(line);
+          }),
+        ),
+        Match.when(
+          String.startsWith("committer "),
+          Effect.fnUntraced(function*() {
+            if (committer) {
+              return yield* Effect.fail(
+                new ObjectParseError({
+                  reason: "CommitMalformedHeaders",
+                  detail: "Commit contains duplicate 'committer' headers.",
+                }),
+              );
+            }
 
-  const tree = yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("tree ".length)(treeLine));
-
-  const [parentLines, [authorLine, committerLine]] = Array.span(rest, String.startsWith("parent "));
-
-  if (!authorLine?.startsWith("author ")) {
-    return yield* Effect.fail(
-      new ObjectParseError({
-        reason: "CommitMalformedHeaders",
-        detail: `Expected commit author header after parent headers, received '${authorLine}'.`,
-      }),
-    );
-  }
-
-  if (!committerLine?.startsWith("committer ")) {
-    return yield* Effect.fail(
-      new ObjectParseError({
-        reason: "CommitMalformedHeaders",
-        detail: `Expected commit committer header after author header, received '${committerLine}'.`,
-      }),
-    );
-  }
-
-  const parents = yield* Effect.forEach(
-    parentLines,
-    (line) => Schema.decodeUnknownEffect(ObjectHash)(String.slice("parent ".length)(line)),
+            committer = String.slice("committer ".length)(line);
+          }),
+        ),
+        Match.orElse(Effect.fnUntraced(function*() {
+          return yield* Effect.fail(
+            new ObjectParseError({
+              reason: "CommitMalformedHeaders",
+              detail: "Commit contains unknown header.",
+            }),
+          );
+        })),
+      );
+    }),
+    { discard: true },
   );
 
-  const author = String.slice("author ".length)(authorLine);
+  if (!tree) {
+    return yield* Effect.fail(
+      new ObjectParseError({
+        reason: "CommitMalformedHeaders",
+        detail: "Commit is missing required 'tree' header.",
+      }),
+    );
+  }
 
-  const committer = String.slice("committer ".length)(committerLine);
+  if (!author) {
+    return yield* Effect.fail(
+      new ObjectParseError({
+        reason: "CommitMalformedHeaders",
+        detail: "Commit is missing required 'author' header.",
+      }),
+    );
+  }
 
-  return new CommitObject({ tree, parents, author, committer, message });
+  if (!committer) {
+    return yield* Effect.fail(
+      new ObjectParseError({
+        reason: "CommitMalformedHeaders",
+        detail: "Commit is missing required 'committer' header.",
+      }),
+    );
+  }
+
+  return new CommitObject({ tree, parents, author, committer, message: messages.join("\n") });
 });

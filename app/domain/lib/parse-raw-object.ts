@@ -12,17 +12,17 @@ export const parseRawObject = Effect.fn("parseRawObject")(function*(raw: Buffer)
   if (nullIndex === -1) {
     return yield* Effect.fail(
       new ObjectParseError({
-        reason: "MissingObjectHeaderNul",
-        detail: "Object header does not contain a NUL delimiter.",
+        reason: "MissingObjectHeaderNull",
+        detail: "Object header does not contain a NULL delimiter.",
       }),
     );
   }
 
   const header = raw.subarray(0, nullIndex).toString();
 
-  const [type, sizeRaw, ...rest] = String.split(" ")(header);
+  const [typeRaw, sizeRaw, ...rest] = String.split(" ")(header);
 
-  if (!type || !sizeRaw || rest.length > 0) {
+  if (!typeRaw || !sizeRaw || rest.length > 0) {
     return yield* Effect.fail(
       new ObjectParseError({
         reason: "InvalidObjectHeader",
@@ -42,7 +42,7 @@ export const parseRawObject = Effect.fn("parseRawObject")(function*(raw: Buffer)
     );
   }
 
-  const objectType = yield* Schema.decodeUnknownEffect(ObjectType)(type);
+  const type = yield* Schema.decodeUnknownEffect(ObjectType)(typeRaw);
 
   const body = raw.subarray(nullIndex + 1);
 
@@ -55,7 +55,7 @@ export const parseRawObject = Effect.fn("parseRawObject")(function*(raw: Buffer)
     );
   }
 
-  return yield* Match.value(objectType).pipe(
+  return yield* Match.value(type).pipe(
     Match.when("blob", () => parseBlobBody(body)),
     Match.when("tree", () => parseTreeBody(body)),
     Match.when("commit", () => parseCommitBody(body)),
