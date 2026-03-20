@@ -5,7 +5,7 @@ import { parseBlobBody } from "./parse-blob-body.ts";
 import { parseCommitBody } from "./parse-commit-body.ts";
 import { parseTreeBody } from "./parse-tree-body.ts";
 
-export const parseObjectFromBuffer = Effect.fn("parseObjectFromBuffer")(function* (raw: Buffer) {
+export const parseRawObject = Effect.fn("parseRawObject")(function* (raw: Buffer) {
   const nullIndex = raw.indexOf(0x00);
 
   const header = raw.subarray(0, nullIndex).toString();

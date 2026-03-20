@@ -3,6 +3,7 @@
   "description": "Build your own Git challenge, from CodeCrafters",
   "type": "module",
   "scripts": {
+    "worktree:setup": "bash scripts/worktree-setup.sh",
     "dev": "bun run app/main.ts",
     "clean": "rimraf bun.lock node_modules apps/*/node_modules packages/*/node_modules .turbo apps/*/.turbo packages/*/.turbo",
     "format:fix": "oxfmt",

@@ -1,4 +1,4 @@
-import { Array, Effect, FileSystem, Layer, Match, Order, Path, pipe } from "effect";
+import { Effect, Layer, Match } from "effect";
 
 import { CompressionOutputPort } from "../../ports/compression-output-port.ts";
 import { CryptoOutputPort } from "../../ports/crypto-output-port.ts";
@@ -7,28 +7,23 @@ import {
   GitInputPortError,
   type GitInputPortShape,
 } from "../../ports/git-input-port.ts";
-import { ObjectStorageOutputPort } from "../../ports/object-storage-output-port.ts";
-import { parseObjectFromBuffer } from "../lib/parse-object-from-buffer.ts";
-import { BlobObject } from "../models/blob-object.ts";
+import { RepositoryOutputPort } from "../../ports/repository-output-port.ts";
+import { parseRawObject } from "../lib/parse-raw-object.ts";
 import { CommitObject } from "../models/commit-object.ts";
 import { EntryName } from "../models/entry-name.ts";
 import { FileMode } from "../models/file-mode.ts";
-import { FilePath } from "../models/file-path.ts";
-import { FilePath as FilePathSchema } from "../models/file-path.ts";
 import { TreeEntry, TreeObject } from "../models/tree-object.ts";
 
 const INITIAL_COMMIT_METADATA = "John Doe <john@example.com> 1234567890 +0000";
 
 const makeImpl = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
   const compression = yield* CompressionOutputPort;
   const crypto = yield* CryptoOutputPort;
-  const storage = yield* ObjectStorageOutputPort;
+  const repository = yield* RepositoryOutputPort;
 
   const init = Effect.fn("GitService.init")(
     function* () {
-      yield* storage.init();
+      yield* repository.initRepository();
     },
 
     Effect.catch(
@@ -40,9 +35,9 @@ const makeImpl = Effect.gen(function* () {
 
   const catFile: GitInputPortShape["catFile"] = Effect.fn("GitService.catFile")(
     function* ({ hash }) {
-      const buffer = yield* compression.unzip({ content: yield* storage.read({ hash }) });
+      const buffer = yield* compression.unzip({ content: yield* repository.readObject({ hash }) });
 
-      return yield* parseObjectFromBuffer(buffer);
+      return yield* parseRawObject(buffer);
     },
 
     Effect.catch(
@@ -54,14 +49,14 @@ const makeImpl = Effect.gen(function* () {
 
   const hashObject: GitInputPortShape["hashObject"] = Effect.fn("GitService.hashObject")(
     function* ({ path, write }) {
-      const content = yield* fs.readFile(path);
+      const content = yield* repository.readWorkingTreeFile({ path });
 
-      const hash = yield* crypto.hash({ content: Buffer.from(content) });
+      const hash = yield* crypto.hash({ content });
 
       if (write) {
-        yield* storage.write({
+        yield* repository.writeObject({
           hash,
-          content: yield* compression.zip({ content: Buffer.from(content) }),
+          content: yield* compression.zip({ content }),
         });
       }
 
@@ -77,17 +72,15 @@ const makeImpl = Effect.gen(function* () {
 
   const listTree: GitInputPortShape["listTree"] = Effect.fn("GitService.listTree")(
     function* ({ hash }) {
-      const content = yield* compression.unzip({ content: yield* storage.read({ hash }) });
+      const content = yield* compression.unzip({ content: yield* repository.readObject({ hash }) });
 
-      const object = yield* parseObjectFromBuffer(content);
+      const object = yield* parseRawObject(content);
 
-      return yield* Match.valueTags(object, {
-        BlobObject: () =>
-          Effect.fail(new GitInputPortError({ message: "not a tree object", cause: undefined })),
-        TreeObject: ({ entries }) => Effect.succeed(entries),
-        CommitObject: () =>
-          Effect.fail(new GitInputPortError({ message: "not a tree object", cause: undefined })),
-      });
+      if (object._tag !== "TreeObject") {
+        return yield* Effect.fail(new Error("Not a tree object."));
+      }
+
+      return object.entries;
     },
 
     Effect.catch(
@@ -99,62 +92,51 @@ const makeImpl = Effect.gen(function* () {
 
   const writeTree: GitInputPortShape["writeTree"] = Effect.fn("GitService.writeTree")(
     function* ({ path: dirPath }) {
-      const entries = yield* pipe(
-        yield* fs.readDirectory(dirPath),
-        Array.filter((name) => name !== ".git"),
-        Array.sort(Order.String),
-        Effect.forEach(
-          Effect.fnUntraced(function* (name) {
-            const fullPath = FilePathSchema.makeUnsafe(path.join(dirPath, name));
+      const workingTreeEntries = yield* repository.listWorkingTreeEntries({ path: dirPath });
 
-            const { type: fileType } = yield* fs.stat(fullPath);
+      const entries = yield* Effect.forEach(
+        workingTreeEntries,
+        Effect.fnUntraced(function* ({ name, path, type }) {
+          return yield* Match.value(type).pipe(
+            Match.when(
+              "File",
+              Effect.fnUntraced(function* () {
+                const hash = yield* hashObject({
+                  path,
+                  write: true,
+                });
 
-            return yield* Match.value(fileType).pipe(
-              Match.when(
-                "File",
-                Effect.fnUntraced(function* () {
-                  const blobHash = yield* hashObject({
-                    path: FilePath.makeUnsafe(fullPath),
-                    write: true,
-                  });
+                return new TreeEntry({
+                  mode: FileMode.makeUnsafe("100644"),
+                  name: EntryName.makeUnsafe(name),
+                  hash,
+                });
+              }),
+            ),
 
-                  return new TreeEntry({
-                    mode: FileMode.makeUnsafe("100644"),
-                    name: EntryName.makeUnsafe(name),
-                    hash: blobHash,
-                  });
-                }),
-              ),
-              Match.when(
-                "Directory",
-                Effect.fnUntraced(function* () {
-                  const treeHash = yield* writeTree({ path: FilePath.makeUnsafe(fullPath) });
+            Match.when(
+              "Directory",
+              Effect.fnUntraced(function* () {
+                const hash = yield* writeTree({ path });
 
-                  return new TreeEntry({
-                    mode: FileMode.makeUnsafe("40000"),
-                    name: EntryName.makeUnsafe(name),
-                    hash: treeHash,
-                  });
-                }),
-              ),
-              Match.orElse(
-                Effect.fn(function* (cause) {
-                  return yield* new GitInputPortError({
-                    message: `Unsupported file type: ${fileType}`,
-                    cause,
-                  });
-                }),
-              ),
-            );
-          }),
-        ),
+                return new TreeEntry({
+                  mode: FileMode.makeUnsafe("40000"),
+                  name: EntryName.makeUnsafe(name),
+                  hash,
+                });
+              }),
+            ),
+
+            Match.exhaustive,
+          );
+        }),
       );
 
-      const payload = yield* TreeObject.serialize(new TreeObject({ entries }));
+      const content = yield* TreeObject.serialize(new TreeObject({ entries }));
 
-      const hash = yield* crypto.hash({ content: payload });
+      const hash = yield* crypto.hash({ content });
 
-      yield* storage.write({ hash, content: yield* compression.zip({ content: payload }) });
+      yield* repository.writeObject({ hash, content: yield* compression.zip({ content }) });
 
       return hash;
     },
@@ -180,7 +162,7 @@ const makeImpl = Effect.gen(function* () {
 
       const hash = yield* crypto.hash({ content });
 
-      yield* storage.write({ hash, content: yield* compression.zip({ content }) });
+      yield* repository.writeObject({ hash, content: yield* compression.zip({ content }) });
 
       return hash;
     },

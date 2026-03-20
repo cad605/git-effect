@@ -46,14 +46,18 @@ const catFile = Command.make(
 
     if (pretty) {
       return yield* Match.valueTags(gitObject, {
-        BlobObject: (blob) => terminal.display(blob.content.toString()),
-        TreeObject: (tree) =>
+        BlobObject: Effect.fnUntraced(function* (blob) {
+          return yield* terminal.display(blob.content.toString());
+        }),
+
+        TreeObject: ({ entries }) =>
           Effect.forEach(
-            tree.entries,
+            entries,
             ({ mode, type, hash, name }) =>
               terminal.display(`${mode.padStart(6, "0")} ${type} ${hash}\t${name}\n`),
             { discard: true },
           ),
+
         CommitObject: Effect.fnUntraced(function* (commit) {
           return yield* terminal.display(yield* CommitObject.formatBody(commit));
         }),
