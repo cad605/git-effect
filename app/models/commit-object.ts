@@ -12,7 +12,7 @@ export class CommitObject extends Schema.TaggedClass<CommitObject>()("CommitObje
   static formatBody({ tree, parents, author, committer, message }: CommitObject): string {
     const lines = [
       `tree ${tree}`,
-      ...parents.map((parent) => `parent ${parent}`),
+      ...parents.map((hash) => `parent ${hash}`),
       `author ${author}`,
       `committer ${committer}`,
       "",
