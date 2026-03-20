@@ -6,26 +6,25 @@ import { FilePath } from "../domain/models/file-path.ts";
 import {
   RepositoryOutputPort,
   RepositoryOutputPortError,
+  type RepositoryOutputPortShape,
   WorkingTreeEntry,
   WorkingTreeEntryType,
-  type RepositoryOutputPortShape,
 } from "../ports/repository-output-port.ts";
 
-const makeImpl = Effect.gen(function* () {
+const makeImpl = Effect.gen(function*() {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
   const initRepository: RepositoryOutputPortShape["initRepository"] = Effect.fn(
     "RepositoryOutputAdapter.initRepository",
   )(
-    function* () {
+    function*() {
       yield* fs.makeDirectory(path.resolve(path.join(".git", "objects")), { recursive: true });
       yield* fs.makeDirectory(path.resolve(path.join(".git", "refs")), { recursive: true });
       yield* fs.writeFileString(path.join(".git", "HEAD"), "ref: refs/heads/main\n");
     },
-
     Effect.catch(
-      Effect.fnUntraced(function* (cause) {
+      Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({
           message: "Failed to initialize repository storage",
           cause,
@@ -37,16 +36,15 @@ const makeImpl = Effect.gen(function* () {
   const readObject: RepositoryOutputPortShape["readObject"] = Effect.fn(
     "RepositoryOutputAdapter.readObject",
   )(
-    function* ({ hash }) {
+    function*({ hash }) {
       const { prefix, suffix } = parseObjectLoosePath(hash);
 
       const content = yield* fs.readFile(path.join(".git", "objects", prefix, suffix));
 
       return Buffer.from(content);
     },
-
     Effect.catch(
-      Effect.fnUntraced(function* (cause) {
+      Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({ message: "Failed to read object", cause });
       }),
     ),
@@ -55,16 +53,15 @@ const makeImpl = Effect.gen(function* () {
   const writeObject: RepositoryOutputPortShape["writeObject"] = Effect.fn(
     "RepositoryOutputAdapter.writeObject",
   )(
-    function* ({ hash, content }) {
+    function*({ hash, content }) {
       const { prefix, suffix } = parseObjectLoosePath(hash);
 
       yield* fs.makeDirectory(path.join(".git", "objects", prefix), { recursive: true });
 
       yield* fs.writeFile(path.join(".git", "objects", prefix, suffix), content);
     },
-
     Effect.catch(
-      Effect.fnUntraced(function* (cause) {
+      Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({ message: "Failed to write object", cause });
       }),
     ),
@@ -73,14 +70,13 @@ const makeImpl = Effect.gen(function* () {
   const readWorkingTreeFile: RepositoryOutputPortShape["readWorkingTreeFile"] = Effect.fn(
     "RepositoryOutputAdapter.readWorkingTreeFile",
   )(
-    function* ({ path }) {
+    function*({ path }) {
       const content = yield* fs.readFile(path);
 
       return Buffer.from(content);
     },
-
     Effect.catch(
-      Effect.fnUntraced(function* (cause) {
+      Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({
           message: "Failed to read working tree file",
           cause,
@@ -92,7 +88,7 @@ const makeImpl = Effect.gen(function* () {
   const listWorkingTreeEntries: RepositoryOutputPortShape["listWorkingTreeEntries"] = Effect.fn(
     "RepositoryOutputAdapter.listWorkingTreeEntries",
   )(
-    function* ({ path: directoryPath }) {
+    function*({ path: directoryPath }) {
       const entries = yield* fs.readDirectory(directoryPath);
 
       return yield* pipe(
@@ -100,7 +96,7 @@ const makeImpl = Effect.gen(function* () {
         Array.filter((name) => name !== ".git"),
         Array.sort(Order.String),
         Effect.forEach(
-          Effect.fnUntraced(function* (name) {
+          Effect.fnUntraced(function*(name) {
             const entryPath = FilePath.makeUnsafe(path.join(directoryPath, name));
 
             const { type } = yield* fs.stat(entryPath);
@@ -118,9 +114,8 @@ const makeImpl = Effect.gen(function* () {
         ),
       );
     },
-
     Effect.catch(
-      Effect.fnUntraced(function* (cause) {
+      Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({
           message: "Failed to list working tree entries",
           cause,

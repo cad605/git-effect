@@ -9,7 +9,7 @@ import { GitInputPort } from "../ports/git-input-port.ts";
 const init = Command.make(
   "init",
   {},
-  Effect.fn("CliInputAdapter.init")(function* () {
+  Effect.fn("CliInputAdapter.init")(function*() {
     const git = yield* GitInputPort;
 
     yield* git.init();
@@ -34,7 +34,7 @@ const catFile = Command.make(
     ),
     hash: Argument.string("hash").pipe(Argument.withDescription("Git Object SHA to cat")),
   },
-  Effect.fn("CliInputAdapter.cat-file")(function* ({ pretty, hash }) {
+  Effect.fn("CliInputAdapter.cat-file")(function*({ pretty, hash }) {
     const git = yield* GitInputPort;
     const terminal = yield* Terminal.Terminal;
 
@@ -46,19 +46,18 @@ const catFile = Command.make(
 
     if (pretty) {
       return yield* Match.valueTags(gitObject, {
-        BlobObject: Effect.fnUntraced(function* (blob) {
+        BlobObject: Effect.fnUntraced(function*(blob) {
           return yield* terminal.display(blob.content.toString());
         }),
 
         TreeObject: ({ entries }) =>
           Effect.forEach(
             entries,
-            ({ mode, type, hash, name }) =>
-              terminal.display(`${mode.padStart(6, "0")} ${type} ${hash}\t${name}\n`),
+            ({ mode, type, hash, name }) => terminal.display(`${mode.padStart(6, "0")} ${type} ${hash}\t${name}\n`),
             { discard: true },
           ),
 
-        CommitObject: Effect.fnUntraced(function* (commit) {
+        CommitObject: Effect.fnUntraced(function*(commit) {
           return yield* terminal.display(yield* CommitObject.formatBody(commit));
         }),
       });
@@ -85,7 +84,7 @@ const hashObject = Command.make(
     ),
     path: Argument.string("path").pipe(Argument.withDescription("The path to the git object file")),
   },
-  Effect.fn("CliInputAdapter.hash-object")(function* ({ write, path }) {
+  Effect.fn("CliInputAdapter.hash-object")(function*({ write, path }) {
     const git = yield* GitInputPort;
     const terminal = yield* Terminal.Terminal;
 
@@ -115,7 +114,7 @@ const listTree = Command.make(
     ),
     hash: Argument.string("hash").pipe(Argument.withDescription("Git Object SHA to list")),
   },
-  Effect.fn("CliInputAdapter.ls-tree")(function* ({ nameOnly, hash }) {
+  Effect.fn("CliInputAdapter.ls-tree")(function*({ nameOnly, hash }) {
     const git = yield* GitInputPort;
     const terminal = yield* Terminal.Terminal;
 
@@ -153,7 +152,7 @@ const writeTree = Command.make(
       Argument.withDefault("."),
     ),
   },
-  Effect.fn("CliInputAdapter.write-tree")(function* ({ path }) {
+  Effect.fn("CliInputAdapter.write-tree")(function*({ path }) {
     const git = yield* GitInputPort;
     const terminal = yield* Terminal.Terminal;
 
@@ -166,11 +165,11 @@ const writeTree = Command.make(
     yield* Effect.logDebug("Done", { success: true });
   }),
 ).pipe(
-  Command.withDescription('Create a tree object from the current state of the "staging area"'),
+  Command.withDescription("Create a tree object from the current state of the \"staging area\""),
   Command.withExamples([
     {
       command: "git write-tree",
-      description: 'Create a tree object from the current state of the "staging area"',
+      description: "Create a tree object from the current state of the \"staging area\"",
     },
   ]),
 );
@@ -187,7 +186,7 @@ const commitTree = Command.make(
       Flag.withDescription("Commit message"),
     ),
   },
-  Effect.fn("CliInputAdapter.commit-tree")(function* ({ tree, parent, message }) {
+  Effect.fn("CliInputAdapter.commit-tree")(function*({ tree, parent, message }) {
     const git = yield* GitInputPort;
     const terminal = yield* Terminal.Terminal;
 

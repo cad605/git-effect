@@ -1,4 +1,4 @@
-import { Schema, ServiceMap, type Effect } from "effect";
+import { type Effect, Schema, ServiceMap } from "effect";
 
 import { EntryName } from "../domain/models/entry-name.ts";
 import { FilePath } from "../domain/models/file-path.ts";

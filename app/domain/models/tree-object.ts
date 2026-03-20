@@ -10,17 +10,16 @@ export class TreeEntry extends Schema.Class<TreeEntry>("TreeEntry")({
   name: EntryName,
   hash: ObjectHash,
 }) {
-  readonly type =
-    this.mode === "40000" ? ObjectType.makeUnsafe("tree") : ObjectType.makeUnsafe("blob");
+  readonly type = this.mode === "40000" ? ObjectType.makeUnsafe("tree") : ObjectType.makeUnsafe("blob");
 }
 
 export class TreeObject extends Schema.TaggedClass<TreeObject>()("TreeObject", {
   entries: Schema.Array(TreeEntry),
 }) {
-  static readonly serialize = Effect.fn("TreeObject.serialize")(function* (tree: TreeObject) {
+  static readonly serialize = Effect.fn("TreeObject.serialize")(function*(tree: TreeObject) {
     const entryBuffers = yield* Effect.forEach(
       tree.entries,
-      Effect.fnUntraced(function* ({ mode, name, hash }) {
+      Effect.fnUntraced(function*({ mode, name, hash }) {
         const hashBytes = yield* Encoding.decodeHex(hash);
 
         return Buffer.concat([Buffer.from(`${mode} ${name}\0`), hashBytes]);

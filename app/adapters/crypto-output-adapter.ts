@@ -3,14 +3,10 @@ import { createHash } from "node:crypto";
 import { Effect, Layer } from "effect";
 
 import { ObjectHash } from "../domain/models/object-hash.ts";
-import {
-  CryptoOutputPort,
-  CryptoOutputPortError,
-  type CryptoOutputPortShape,
-} from "../ports/crypto-output-port.ts";
+import { CryptoOutputPort, CryptoOutputPortError, type CryptoOutputPortShape } from "../ports/crypto-output-port.ts";
 
-const makeImpl = Effect.gen(function* () {
-  const hash: CryptoOutputPortShape["hash"] = Effect.fn("HashOutputAdapter.hash")(function* ({
+const makeImpl = Effect.gen(function*() {
+  const hash: CryptoOutputPortShape["hash"] = Effect.fn("HashOutputAdapter.hash")(function*({
     content,
   }) {
     return yield* Effect.try({

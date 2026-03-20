@@ -1,4 +1,4 @@
-import { Schema, ServiceMap, type Effect } from "effect";
+import { type Effect, Schema, ServiceMap } from "effect";
 
 export class CompressionOutputPortError extends Schema.TaggedErrorClass(
   "CompressionOutputPortError",

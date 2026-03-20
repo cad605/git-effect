@@ -8,9 +8,9 @@ import {
   type CompressionOutputPortShape,
 } from "../ports/compression-output-port.ts";
 
-const makeImpl = Effect.gen(function* () {
+const makeImpl = Effect.gen(function*() {
   const zip: CompressionOutputPortShape["zip"] = Effect.fn("CompressionOutputAdapter.zip")(
-    function* ({ content }) {
+    function*({ content }) {
       return yield* Effect.try({
         try: () => deflateSync(content),
         catch: (cause) => new CompressionOutputPortError({ message: "Compression failed", cause }),
@@ -19,11 +19,10 @@ const makeImpl = Effect.gen(function* () {
   );
 
   const unzip: CompressionOutputPortShape["unzip"] = Effect.fn("CompressionOutputAdapter.unzip")(
-    function* ({ content }) {
+    function*({ content }) {
       return yield* Effect.try({
         try: () => unzipSync(content),
-        catch: (cause) =>
-          new CompressionOutputPortError({ message: "Decompression failed", cause }),
+        catch: (cause) => new CompressionOutputPortError({ message: "Decompression failed", cause }),
       });
     },
   );

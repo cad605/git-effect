@@ -1,4 +1,4 @@
-import { Schema, ServiceMap, type Effect } from "effect";
+import { type Effect, Schema, ServiceMap } from "effect";
 
 import type { FilePath } from "../domain/models/file-path.ts";
 import type { ObjectHash } from "../domain/models/object-hash.ts";
@@ -38,11 +38,11 @@ export interface GitInputPortShape {
     tree,
     parent,
     message,
-  }: {
-    tree: ObjectHash;
-    parent: ObjectHash | undefined;
-    message: string;
-  }) => Effect.Effect<ObjectHash, GitInputPortError, never>;
+  }: { tree: ObjectHash; parent: ObjectHash | undefined; message: string }) => Effect.Effect<
+    ObjectHash,
+    GitInputPortError,
+    never
+  >;
 }
 
 export class GitInputPort extends ServiceMap.Service<GitInputPort, GitInputPortShape>()(
