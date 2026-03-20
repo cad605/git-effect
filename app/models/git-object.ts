@@ -1,4 +1,4 @@
-import { Array, Effect, Encoding, Match, Option, Schema } from "effect";
+import { Array, Effect, Encoding, Match, Option, Schema, String, pipe } from "effect";
 
 import { BlobObject } from "./blob-object.ts";
 import { CommitObject } from "./commit-object.ts";
@@ -15,82 +15,120 @@ const readBytes = (buffer: Buffer, offset: number, length: number) => {
   return [buffer.subarray(offset, offset + length), offset + length] as const;
 };
 
-const parseCommitBody = Effect.fn("parseCommitBody")(function* (body: Buffer) {
-  const text = body.toString("utf8");
-  let pos = 0;
+type CommitTextParts = {
+  readonly headerText: string;
+  readonly message: string;
+};
 
-  const readLine = (): string | undefined => {
-    const nl = text.indexOf("\n", pos);
-    if (nl === -1) {
-      return undefined;
+const normalizeCommitMessage = (message: string): string =>
+  String.endsWith("\n")(message) ? String.slice(0, -1)(message) : message;
+
+const splitCommitText = (text: string): Effect.Effect<CommitTextParts, Error> => {
+  const sep = text.indexOf("\n\n");
+  if (sep === -1) {
+    return Effect.fail(new Error("Invalid commit: expected blank line before message"));
+  }
+  return Effect.succeed({
+    headerText: text.slice(0, sep),
+    message: normalizeCommitMessage(text.slice(sep + 2)),
+  });
+};
+
+const commitHeaderLineArray = (headerText: string): ReadonlyArray<string> => [
+  ...String.linesIterator(headerText),
+];
+
+const decodeTreeLine = (line: string | undefined): Effect.Effect<ObjectHash, Error> =>
+  line !== undefined && String.startsWith("tree ")(line)
+    ? Schema.decodeUnknownEffect(ObjectHash)(line.slice(5).trim())
+    : Effect.fail(new Error("Invalid commit: expected tree line"));
+
+const decodeParentLines = (
+  lines: ReadonlyArray<string>,
+): Effect.Effect<
+  { readonly parents: Array<ObjectHash>; readonly rest: ReadonlyArray<string> },
+  Error
+> =>
+  Effect.gen(function* () {
+    const parents: Array<ObjectHash> = [];
+    let i = 0;
+    while (i < lines.length && String.startsWith("parent ")(lines[i]!)) {
+      parents.push(yield* Schema.decodeUnknownEffect(ObjectHash)(lines[i]!.slice(7).trim()));
+      i++;
     }
+    return { parents, rest: lines.slice(i) };
+  });
 
-    const line = text.slice(pos, nl);
-    pos = nl + 1;
+const expectAuthorLine = (line: string | undefined): Effect.Effect<string, Error> =>
+  line !== undefined && String.startsWith("author ")(line)
+    ? Effect.succeed(line.slice("author ".length))
+    : Effect.fail(new Error("Invalid commit: expected author line"));
 
-    return line;
-  };
+const expectCommitterLine = (line: string | undefined): Effect.Effect<string, Error> =>
+  line !== undefined && String.startsWith("committer ")(line)
+    ? Effect.succeed(line.slice("committer ".length))
+    : Effect.fail(new Error("Invalid commit: expected committer line"));
 
-  const treeLine = readLine();
-  if (treeLine === undefined || !treeLine.startsWith("tree ")) {
-    return yield* Effect.fail(new Error("Invalid commit: expected tree line"));
-  }
+const parseCommitHeader = (
+  headerText: string,
+): Effect.Effect<
+  {
+    readonly tree: ObjectHash;
+    readonly parents: Array<ObjectHash>;
+    readonly author: string;
+    readonly committer: string;
+  },
+  Error
+> => {
+  const lines = commitHeaderLineArray(headerText);
+  return pipe(
+    decodeTreeLine(lines[0]),
+    Effect.flatMap((tree) =>
+      pipe(
+        decodeParentLines(lines.slice(1)),
+        Effect.flatMap(({ parents, rest }) =>
+          pipe(
+            expectAuthorLine(rest[0]),
+            Effect.flatMap((author) =>
+              pipe(
+                expectCommitterLine(rest[1]),
+                Effect.flatMap((committer) =>
+                  rest.length !== 2
+                    ? Effect.fail(new Error("Invalid commit: unexpected lines in header"))
+                    : Effect.succeed({ tree, parents, author, committer }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+};
 
-  const tree = yield* Schema.decodeUnknownEffect(ObjectHash)(treeLine.slice(5).trim());
-
-  const parents: Array<ObjectHash> = [];
-  let line = readLine();
-  if (line === undefined) {
-    return yield* Effect.fail(new Error("Invalid commit: unexpected end after tree"));
-  }
-
-  while (line.startsWith("parent ")) {
-    const parent = yield* Schema.decodeUnknownEffect(ObjectHash)(line.slice(7).trim());
-    parents.push(parent);
-    const next = readLine();
-    if (next === undefined) {
-      return yield* Effect.fail(new Error("Invalid commit: unexpected end after parent"));
-    }
-    line = next;
-  }
-
-  if (!line.startsWith("author ")) {
-    return yield* Effect.fail(new Error("Invalid commit: expected author line"));
-  }
-
-  const author = line.slice("author ".length);
-
-  const committerLine = readLine();
-  if (committerLine === undefined || !committerLine.startsWith("committer ")) {
-    return yield* Effect.fail(new Error("Invalid commit: expected committer line"));
-  }
-
-  const committer = committerLine.slice("committer ".length);
-
-  const blank = readLine();
-  if (blank !== "") {
-    return yield* Effect.fail(new Error("Invalid commit: expected blank line before message"));
-  }
-
-  let message = text.slice(pos);
-  if (message.endsWith("\n")) {
-    message = message.slice(0, -1);
-  }
-
-  return new CommitObject({ tree, parents, author, committer, message });
-});
+const parseCommitBody = Effect.fn("parseCommitBody")((body: Buffer) =>
+  pipe(
+    splitCommitText(body.toString("utf8")),
+    Effect.flatMap(({ headerText, message }) =>
+      pipe(
+        parseCommitHeader(headerText),
+        Effect.map((fields) => new CommitObject({ ...fields, message })),
+      ),
+    ),
+  ),
+);
 
 export const parseGitObject = Effect.fn("parseGitObject")(function* (raw: Buffer) {
   const nullIndex = raw.indexOf(0x00);
 
   const header = raw.subarray(0, nullIndex).toString();
-  const [typeString] = header.split(" ", 1);
+  const [type] = header.split(" ", 1);
 
-  const type = yield* Schema.decodeUnknownEffect(ObjectType)(typeString);
+  const objectType = yield* Schema.decodeUnknownEffect(ObjectType)(type);
 
   const body = raw.subarray(nullIndex + 1);
 
-  return yield* Match.value(type).pipe(
+  return yield* Match.value(objectType).pipe(
     Match.when(
       "blob",
       Effect.fnUntraced(function* () {

@@ -174,10 +174,7 @@ const commitTreeCmd = Command.make(
   {
     tree: Argument.string("tree").pipe(Argument.withDescription("Tree object SHA")),
     parent: Flag.optional(
-      Flag.string("parent").pipe(
-        Flag.withAlias("p"),
-        Flag.withDescription("Parent commit SHA"),
-      ),
+      Flag.string("parent").pipe(Flag.withAlias("p"), Flag.withDescription("Parent commit SHA")),
     ),
     message: Flag.string("message").pipe(
       Flag.withAlias("m"),
@@ -219,7 +216,9 @@ const commitTreeCmd = Command.make(
 const root = Command.make("git").pipe(Command.withDescription("Git is a version control system."));
 
 export const CliInputAdapter = Command.run(
-  root.pipe(Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTreeCmd])),
+  root.pipe(
+    Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTreeCmd]),
+  ),
   {
     version: "1.0.0",
   },

@@ -1,5 +1,7 @@
 import { Schema } from "effect";
 
-export const ObjectType = Schema.Literals(["tree", "blob", "commit"]).pipe(Schema.brand("ObjectType"));
+export const ObjectType = Schema.Literals(["tree", "blob", "commit"]).pipe(
+  Schema.brand("ObjectType"),
+);
 
 export type ObjectType = typeof ObjectType.Type;
