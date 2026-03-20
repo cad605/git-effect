@@ -1,4 +1,4 @@
-import { Array, Effect, Option, Schema, String, pipe } from "effect";
+import { Array, Effect, Schema, String, pipe } from "effect";
 
 import { CommitObject } from "../models/commit-object.ts";
 import { ObjectHash } from "../models/object-hash.ts";
