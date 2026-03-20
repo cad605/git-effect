@@ -4,23 +4,27 @@ import { CommitObject } from "../models/commit-object.ts";
 import { ObjectHash } from "../models/object-hash.ts";
 
 export const parseCommitBody = Effect.fn("parseCommitBody")(function* (body: Buffer) {
-  const [headerText, ...messageParts] = pipe(body.toString("utf8"), String.split("\n\n"));
+  const [header, ...messageParts] = pipe(body.toString("utf8"), String.split("\n\n"));
+
   const message = pipe(messageParts, Array.join("\n\n"), String.trimEnd);
 
-  const [treeLine, ...rest] = String.split("\n")(headerText);
+  const [treeLine, ...rest] = String.split("\n")(header);
 
   const tree = yield* Schema.decodeUnknownEffect(ObjectHash)(treeLine.slice("tree ".length));
 
   const [parentLines, remaining] = Array.span(rest, (line) => line.startsWith("parent "));
+
   const parents = yield* Effect.forEach(parentLines, (line) =>
-    Schema.decodeUnknownEffect(ObjectHash)(line.slice("parent ".length)),
+    Schema.decodeUnknownEffect(ObjectHash)(String.slice("parent ".length)(line)),
   );
 
-  const author = pipe(remaining, Array.get(0), Option.getOrThrow, (line) =>
-    line.slice("author ".length),
-  );
-  const committer = pipe(remaining, Array.get(1), Option.getOrThrow, (line) =>
-    line.slice("committer ".length),
+  const author = pipe(remaining, Array.get(0), Option.getOrThrow, String.slice("author ".length));
+
+  const committer = pipe(
+    remaining,
+    Array.get(1),
+    Option.getOrThrow,
+    String.slice("committer ".length),
   );
 
   return new CommitObject({ tree, parents, author, committer, message });
