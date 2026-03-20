@@ -5,23 +5,30 @@ import { Effect, Layer } from "effect";
 import {
   CompressionOutputPort,
   CompressionOutputPortError,
+  type CompressionOutputPortShape,
 } from "../ports/compression-output-port.ts";
 
-export const CompressionOutputAdapter = Layer.sync(CompressionOutputPort, () =>
-  CompressionOutputPort.of({
-    zip: Effect.fn("CompressionOutputAdapter.zip")(function* (bytes: Buffer) {
+const makeImpl = Effect.gen(function* () {
+  const zip: CompressionOutputPortShape["zip"] = Effect.fn("CompressionOutputAdapter.zip")(
+    function* ({ content }) {
       return yield* Effect.try({
-        try: () => deflateSync(bytes),
+        try: () => deflateSync(content),
         catch: (cause) => new CompressionOutputPortError({ message: "Compression failed", cause }),
       });
-    }),
+    },
+  );
 
-    unzip: Effect.fn("CompressionOutputAdapter.unzip")(function* (bytes: Buffer) {
+  const unzip: CompressionOutputPortShape["unzip"] = Effect.fn("CompressionOutputAdapter.unzip")(
+    function* ({ content }) {
       return yield* Effect.try({
-        try: () => unzipSync(bytes),
+        try: () => unzipSync(content),
         catch: (cause) =>
           new CompressionOutputPortError({ message: "Decompression failed", cause }),
       });
-    }),
-  }),
-);
+    },
+  );
+
+  return { zip, unzip } satisfies CompressionOutputPortShape;
+});
+
+export const CompressionOutputAdapter = Layer.effect(CompressionOutputPort, makeImpl);

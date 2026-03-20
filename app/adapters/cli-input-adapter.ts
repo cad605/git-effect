@@ -1,9 +1,8 @@
 import { Effect, Match, Option, Terminal } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
-import { CommitObject } from "../models/commit-object.ts";
-import { FilePath } from "../models/file-path.ts";
-import { ObjectHash } from "../models/object-hash.ts";
+import { FilePath } from "../domain/models/file-path.ts";
+import { ObjectHash } from "../domain/models/object-hash.ts";
 import { GitInputPort } from "../ports/git-input-port.ts";
 
 const init = Command.make(
@@ -40,12 +39,12 @@ const catFile = Command.make(
 
     yield* Effect.logDebug("Reading file...", { hash, pretty });
 
-    const gitObject = yield* git.catFile(ObjectHash.makeUnsafe(hash));
+    const gitObject = yield* git.catFile({ hash: ObjectHash.makeUnsafe(hash) });
 
     yield* Effect.logDebug("Result...", { gitObject });
 
     if (pretty) {
-      return yield* Match.valueTags(gitObject, {
+      yield* Match.valueTags(gitObject, {
         BlobObject: (blob) => terminal.display(blob.content.toString()),
         TreeObject: (tree) =>
           Effect.forEach(
@@ -54,18 +53,18 @@ const catFile = Command.make(
               terminal.display(`${mode.padStart(6, "0")} ${type} ${hash}\t${name}\n`),
             { discard: true },
           ),
-        CommitObject: (commit) => terminal.display(CommitObject.formatBody(commit)),
+        CommitObject: (commit) => terminal.display(yield * CommitObject.serializeBody(commit)),
       });
     }
 
     yield* Effect.logDebug("Done", { success: true });
   }),
 ).pipe(
-  Command.withDescription("View the type, size, and content of a Git object"),
+  Command.withDescription("View the type, size, and content of an object"),
   Command.withExamples([
     {
       command: "git cat-file -p <blob_sha>",
-      description: "View the content of the Git Object identified by the provided SHA",
+      description: "View the content of the object identified by the provided SHA",
     },
   ]),
 );
@@ -85,18 +84,18 @@ const hashObject = Command.make(
 
     yield* Effect.logDebug("Hashing object...", { write, path });
 
-    const hash = yield* git.hashObject(FilePath.makeUnsafe(path), write);
+    const hash = yield* git.hashObject({ path: FilePath.makeUnsafe(path), write });
 
     yield* terminal.display(hash);
 
     yield* Effect.logDebug("Done", { success: true });
   }),
 ).pipe(
-  Command.withDescription("Hash an object and optionally write it to the object database"),
+  Command.withDescription("Hash an object and optionally write it to the object storage"),
   Command.withExamples([
     {
       command: "git hash-object -w <content>",
-      description: "Hash an object and write it to the object database",
+      description: "Hash an object and write it to the object storage",
     },
   ]),
 );
@@ -115,7 +114,7 @@ const listTree = Command.make(
 
     yield* Effect.logDebug("Listing tree...", { nameOnly, hash });
 
-    const entries = yield* git.listTree(ObjectHash.makeUnsafe(hash));
+    const entries = yield* git.listTree({ hash: ObjectHash.makeUnsafe(hash) });
 
     yield* Effect.forEach(
       entries,
@@ -153,7 +152,7 @@ const writeTree = Command.make(
 
     yield* Effect.logDebug("Writing tree...", { path });
 
-    const hash = yield* git.writeTree(FilePath.makeUnsafe(path));
+    const hash = yield* git.writeTree({ path: FilePath.makeUnsafe(path) });
 
     yield* terminal.display(hash);
 
@@ -169,7 +168,7 @@ const writeTree = Command.make(
   ]),
 );
 
-const commitTreeCmd = Command.make(
+const commitTree = Command.make(
   "commit-tree",
   {
     tree: Argument.string("tree").pipe(Argument.withDescription("Tree object SHA")),
@@ -216,9 +215,7 @@ const commitTreeCmd = Command.make(
 const root = Command.make("git").pipe(Command.withDescription("Git is a version control system."));
 
 export const CliInputAdapter = Command.run(
-  root.pipe(
-    Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTreeCmd]),
-  ),
+  root.pipe(Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTree])),
   {
     version: "1.0.0",
   },

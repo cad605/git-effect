@@ -1,6 +1,6 @@
 import { Schema, ServiceMap, type Effect } from "effect";
 
-import type { ObjectHash } from "../models/object-hash.ts";
+import type { ObjectHash } from "../domain/models/object-hash.ts";
 
 export class CryptoOutputPortError extends Schema.TaggedErrorClass("CryptoOutputPortError")(
   "CryptoOutputPortError",
@@ -10,10 +10,14 @@ export class CryptoOutputPortError extends Schema.TaggedErrorClass("CryptoOutput
   },
 ) {}
 
-export type CryptoOutputPortShape = {
-  hash: (bytes: Buffer) => Effect.Effect<ObjectHash, CryptoOutputPortError, never>;
-};
+export interface CryptoOutputPortShape {
+  hash: ({
+    content,
+  }: {
+    content: Buffer;
+  }) => Effect.Effect<ObjectHash, CryptoOutputPortError, never>;
+}
 
 export class CryptoOutputPort extends ServiceMap.Service<CryptoOutputPort, CryptoOutputPortShape>()(
-  "app/application/ports/CryptoOutputPort",
+  "app/ports/CryptoOutputPort",
 ) {}

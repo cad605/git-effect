@@ -2,16 +2,24 @@ import { createHash } from "node:crypto";
 
 import { Effect, Layer } from "effect";
 
-import { ObjectHash } from "../models/object-hash.ts";
-import { CryptoOutputPort, CryptoOutputPortError } from "../ports/crypto-output-port.ts";
+import { ObjectHash } from "../domain/models/object-hash.ts";
+import {
+  CryptoOutputPort,
+  CryptoOutputPortError,
+  type CryptoOutputPortShape,
+} from "../ports/crypto-output-port.ts";
 
-export const HashOutputAdapter = Layer.sync(CryptoOutputPort, () =>
-  CryptoOutputPort.of({
-    hash: Effect.fn("HashOutputAdapter.hash")(function* (bytes: Buffer) {
-      return yield* Effect.try({
-        try: () => ObjectHash.makeUnsafe(createHash("sha1").update(bytes).digest("hex")),
-        catch: (cause) => new CryptoOutputPortError({ message: "Hashing failed", cause }),
-      });
-    }),
-  }),
-);
+const makeImpl = Effect.gen(function* () {
+  const hash: CryptoOutputPortShape["hash"] = Effect.fn("HashOutputAdapter.hash")(function* ({
+    content,
+  }) {
+    return yield* Effect.try({
+      try: () => ObjectHash.makeUnsafe(createHash("sha1").update(content).digest("hex")),
+      catch: (cause) => new CryptoOutputPortError({ message: "Hashing failed", cause }),
+    });
+  });
+
+  return { hash } satisfies CryptoOutputPortShape;
+});
+
+export const HashOutputAdapter = Layer.effect(CryptoOutputPort, makeImpl);

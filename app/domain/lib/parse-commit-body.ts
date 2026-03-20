@@ -4,11 +4,11 @@ import { CommitObject } from "../models/commit-object.ts";
 import { ObjectHash } from "../models/object-hash.ts";
 
 export const parseCommitBody = Effect.fn("parseCommitBody")(function* (body: Buffer) {
-  const [content, ...messages] = pipe(body.toString("utf8"), String.split("\n\n"));
+  const [metadata, ...messages] = pipe(body.toString("utf8"), String.split("\n\n"));
 
   const message = pipe(messages, Array.join("\n\n"), String.trimEnd);
 
-  const [treeLine, ...rest] = String.split("\n")(content);
+  const [treeLine, ...rest] = String.split("\n")(metadata);
 
   const tree = yield* Schema.decodeUnknownEffect(ObjectHash)(treeLine.slice("tree ".length));
 

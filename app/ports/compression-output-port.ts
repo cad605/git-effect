@@ -8,8 +8,17 @@ export class CompressionOutputPortError extends Schema.TaggedErrorClass(
 }) {}
 
 export type CompressionOutputPortShape = {
-  zip: (bytes: Buffer) => Effect.Effect<Buffer, CompressionOutputPortError, never>;
-  unzip: (bytes: Buffer) => Effect.Effect<Buffer, CompressionOutputPortError, never>;
+  zip: ({
+    content,
+  }: {
+    content: Buffer;
+  }) => Effect.Effect<Buffer, CompressionOutputPortError, never>;
+
+  unzip: ({
+    content,
+  }: {
+    content: Buffer;
+  }) => Effect.Effect<Buffer, CompressionOutputPortError, never>;
 };
 
 export class CompressionOutputPort extends ServiceMap.Service<

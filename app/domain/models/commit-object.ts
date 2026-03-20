@@ -9,7 +9,7 @@ export class CommitObject extends Schema.TaggedClass<CommitObject>()("CommitObje
   committer: Schema.String,
   message: Schema.String,
 }) {
-  static readonly serializeBody = Effect.fn("CommitObject.serializeBody")(function* ({
+  static readonly formatBody = Effect.fn("CommitObject.formatBody")(function* ({
     tree,
     parents,
     author,
@@ -18,7 +18,7 @@ export class CommitObject extends Schema.TaggedClass<CommitObject>()("CommitObje
   }: CommitObject) {
     const lines = [
       `tree ${tree}`,
-      ...parents.map((hash) => `parent ${hash}`),
+      ...parents.map((parent) => `parent ${parent}`),
       `author ${author}`,
       `committer ${committer}`,
       "",
@@ -29,8 +29,7 @@ export class CommitObject extends Schema.TaggedClass<CommitObject>()("CommitObje
   });
 
   static readonly serialize = Effect.fn("CommitObject.serialize")(function* (commit: CommitObject) {
-    const body = Buffer.from(yield* CommitObject.serializeBody(commit), "utf8");
-
+    const body = Buffer.from(yield* CommitObject.formatBody(commit), "utf8");
     const header = Buffer.from(`commit ${body.length}\0`);
 
     return Buffer.concat([header, body]);
