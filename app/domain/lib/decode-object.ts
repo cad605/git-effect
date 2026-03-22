@@ -1,8 +1,7 @@
 import { Effect, Encoding, Match, Schema, String } from "effect";
 
 import { ObjectDecodeError } from "../errors/object-decode-error.ts";
-import { CommitObject, ObjectHash, ObjectType, TreeEntry, TreeObject } from "../models/object.ts";
-import { BlobObject } from "../models/object.ts";
+import { BlobObject, CommitObject, ObjectHash, ObjectType, TreeEntry, TreeObject } from "../models/object.ts";
 
 const decoder = new TextDecoder();
 

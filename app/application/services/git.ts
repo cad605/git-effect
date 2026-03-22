@@ -15,12 +15,14 @@ import { CompressionOutputPort } from "../../ports/compression-output-port.ts";
 import { CryptoOutputPort } from "../../ports/crypto-output-port.ts";
 import { GitInputPort, GitInputPortError, type GitInputPortShape } from "../../ports/git-input-port.ts";
 import { RepositoryOutputPort } from "../../ports/repository-output-port.ts";
+import { TransferProtocolOutputPort } from "../../ports/transfer-protocol-output-port.ts";
 
 const INITIAL_COMMIT_METADATA = "John Doe <john@example.com> 1234567890 +0000";
 
 const makeImpl = Effect.gen(function*() {
   const compression = yield* CompressionOutputPort;
   const crypto = yield* CryptoOutputPort;
+  const transferProtocol = yield* TransferProtocolOutputPort;
   const repository = yield* RepositoryOutputPort;
 
   const init = Effect.fn("GitService.init")(
@@ -188,7 +190,21 @@ const makeImpl = Effect.gen(function*() {
     ),
   );
 
-  return { init, catFile, hashObject, listTree, writeTree, commitTree } satisfies GitInputPortShape;
+  const clone: GitInputPortShape["clone"] = Effect.fn("GitService.clone")(
+    function*({ url }) {
+      return yield* transferProtocol.discoverUploadPackRefs({ url });
+    },
+    Effect.catch(
+      Effect.fnUntraced(function*(cause) {
+        return yield* new GitInputPortError({
+          message: "Failed to run clone discovery request",
+          cause,
+        });
+      }),
+    ),
+  );
+
+  return { init, catFile, hashObject, listTree, writeTree, commitTree, clone } satisfies GitInputPortShape;
 });
 
 export const GitService = Layer.effect(GitInputPort, makeImpl);

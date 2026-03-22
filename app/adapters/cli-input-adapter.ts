@@ -203,10 +203,40 @@ const commitTree = Command.make(
   ]),
 );
 
+const clone = Command.make(
+  "clone",
+  {
+    url: Argument.string("remoteUrl").pipe(
+      Argument.withDescription("Remote repository URL"),
+    ),
+    destination: Argument.string("destination").pipe(
+      Argument.withDescription("Destination directory"),
+      Argument.withDefault("."),
+    ),
+  },
+  Effect.fn("CliInputAdapter.clone")(function*({ url, destination }) {
+    const git = yield* GitInputPort;
+
+    yield* Effect.logDebug("Clone discovery...", { url, destination });
+
+    yield* git.clone({ url });
+
+    yield* Effect.logDebug("Done", { success: true });
+  }),
+).pipe(
+  Command.withDescription("Clone a repository into a new directory"),
+  Command.withExamples([
+    {
+      command: "git clone <remoteUrl> <destination>",
+      description: "Clone a remote repository",
+    },
+  ]),
+);
+
 const root = Command.make("git").pipe(Command.withDescription("Git is a version control system."));
 
 export const CliInputAdapter = Command.run(
-  root.pipe(Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTree])),
+  root.pipe(Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTree, clone])),
   {
     version: "1.0.0",
   },

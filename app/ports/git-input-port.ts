@@ -40,6 +40,12 @@ export interface GitInputPortShape {
     GitInputPortError,
     never
   >;
+
+  clone: ({
+    url,
+  }: {
+    url: string;
+  }) => Effect.Effect<Uint8Array<ArrayBuffer>, GitInputPortError, never>;
 }
 
 export class GitInputPort extends ServiceMap.Service<GitInputPort, GitInputPortShape>()(
