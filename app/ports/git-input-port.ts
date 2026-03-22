@@ -1,9 +1,6 @@
 import { type Effect, Schema, ServiceMap } from "effect";
 
-import type { FilePath } from "../domain/models/file-path.ts";
-import type { ObjectHash } from "../domain/models/object-hash.ts";
-import type { Object } from "../domain/models/object.ts";
-import type { TreeObject } from "../domain/models/tree-object.ts";
+import type { BlobObject, FilePath, ObjectHash, TreeObject } from "../domain/models/object.ts";
 
 export class GitInputPortError extends Schema.TaggedErrorClass("GitInputPortError")(
   "GitInputPortError",
@@ -16,7 +13,7 @@ export class GitInputPortError extends Schema.TaggedErrorClass("GitInputPortErro
 export interface GitInputPortShape {
   init: () => Effect.Effect<void, GitInputPortError, never>;
 
-  catFile: ({ hash }: { hash: ObjectHash }) => Effect.Effect<Object, GitInputPortError, never>;
+  catFile: ({ hash }: { hash: ObjectHash }) => Effect.Effect<BlobObject, GitInputPortError, never>;
 
   hashObject: ({
     path,

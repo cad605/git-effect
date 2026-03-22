@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto";
-
+import { CryptoHasher } from "bun";
 import { Effect, Layer } from "effect";
 
-import { ObjectHash } from "../domain/models/object-hash.ts";
+import { ObjectHash } from "../domain/models/object.ts";
 import { CryptoOutputPort, CryptoOutputPortError, type CryptoOutputPortShape } from "../ports/crypto-output-port.ts";
 
 const makeImpl = Effect.gen(function*() {
@@ -10,7 +9,7 @@ const makeImpl = Effect.gen(function*() {
     function*({
       content,
     }) {
-      return ObjectHash.makeUnsafe(createHash("sha1").update(content).digest("hex"));
+      return ObjectHash.makeUnsafe(new CryptoHasher("sha1").update(content).digest("hex"));
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {

@@ -1,8 +1,6 @@
 import { type Effect, Schema, ServiceMap } from "effect";
 
-import { EntryName } from "../domain/models/entry-name.ts";
-import { FilePath } from "../domain/models/file-path.ts";
-import type { ObjectHash } from "../domain/models/object-hash.ts";
+import { EntryName, FilePath, type ObjectHash } from "../domain/models/object.ts";
 
 export class RepositoryOutputPortError extends Schema.TaggedErrorClass("RepositoryOutputPortError")(
   "RepositoryOutputPortError",
@@ -29,21 +27,21 @@ export interface RepositoryOutputPortShape {
     hash,
   }: {
     hash: ObjectHash;
-  }) => Effect.Effect<Buffer, RepositoryOutputPortError, never>;
+  }) => Effect.Effect<Uint8Array<ArrayBuffer>, RepositoryOutputPortError, never>;
 
   writeObject: ({
     hash,
     content,
   }: {
     hash: ObjectHash;
-    content: Buffer;
+    content: Uint8Array<ArrayBuffer>;
   }) => Effect.Effect<void, RepositoryOutputPortError, never>;
 
   readWorkingTreeFile: ({
     path,
   }: {
     path: FilePath;
-  }) => Effect.Effect<Buffer, RepositoryOutputPortError, never>;
+  }) => Effect.Effect<Uint8Array<ArrayBuffer>, RepositoryOutputPortError, never>;
 
   listWorkingTreeEntries: ({
     path,

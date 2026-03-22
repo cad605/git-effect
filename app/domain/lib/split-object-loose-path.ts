@@ -1,4 +1,4 @@
-import type { ObjectHash } from "../models/object-hash.ts";
+import type { ObjectHash } from "../models/object.ts";
 
 export const splitObjectLoosePath = (hash: ObjectHash) => ({
   prefix: hash.slice(0, 2),

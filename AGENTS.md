@@ -19,3 +19,7 @@ effect.
 
 Use these for learning more about the library, rather than browsing the code in
 `node_modules/`.
+
+# Learning more about the challenge
+
+`.repos/challenge/stage_descriptions` includes information about the stages of the challenge.

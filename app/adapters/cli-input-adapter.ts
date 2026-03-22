@@ -1,10 +1,10 @@
-import { Effect, Match, Option, Terminal } from "effect";
+import { Effect, Option, Terminal } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
-import { CommitObject } from "../domain/models/commit-object.ts";
-import { FilePath } from "../domain/models/file-path.ts";
-import { ObjectHash } from "../domain/models/object-hash.ts";
+import { FilePath, ObjectHash } from "../domain/models/object.ts";
 import { GitInputPort } from "../ports/git-input-port.ts";
+
+const decoder = new TextDecoder();
 
 const init = Command.make(
   "init",
@@ -40,27 +40,12 @@ const catFile = Command.make(
 
     yield* Effect.logDebug("Reading file...", { hash, pretty });
 
-    const gitObject = yield* git.catFile({ hash: ObjectHash.makeUnsafe(hash) });
+    const blob = yield* git.catFile({ hash: ObjectHash.makeUnsafe(hash) });
 
-    yield* Effect.logDebug("Result...", { gitObject });
+    yield* Effect.logDebug("Result...", { blob });
 
     if (pretty) {
-      return yield* Match.valueTags(gitObject, {
-        BlobObject: Effect.fnUntraced(function*(blob) {
-          return yield* terminal.display(blob.content.toString());
-        }),
-
-        TreeObject: ({ entries }) =>
-          Effect.forEach(
-            entries,
-            ({ mode, type, hash, name }) => terminal.display(`${mode.padStart(6, "0")} ${type} ${hash}\t${name}\n`),
-            { discard: true },
-          ),
-
-        CommitObject: Effect.fnUntraced(function*(commit) {
-          return yield* terminal.display(yield* CommitObject.formatBody(commit));
-        }),
-      });
+      yield* terminal.display(decoder.decode(blob.content));
     }
 
     yield* Effect.logDebug("Done", { success: true });

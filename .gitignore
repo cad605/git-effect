@@ -1,3 +1,4 @@
 .cursor/
 .repos/
 node_modules/
+*.tsbuildinfo

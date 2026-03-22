@@ -1,14 +1,20 @@
 import { Effect, Layer, Match } from "effect";
 
+import { decodeObject } from "../../domain/lib/decode-object.ts";
+import { encodeObject } from "../../domain/lib/encode-object.ts";
+import {
+  BlobObject,
+  CommitObject,
+  EntryName,
+  FileMode,
+  ObjectType,
+  TreeEntry,
+  TreeObject,
+} from "../../domain/models/object.ts";
 import { CompressionOutputPort } from "../../ports/compression-output-port.ts";
 import { CryptoOutputPort } from "../../ports/crypto-output-port.ts";
 import { GitInputPort, GitInputPortError, type GitInputPortShape } from "../../ports/git-input-port.ts";
 import { RepositoryOutputPort } from "../../ports/repository-output-port.ts";
-import { parseRawObject } from "../lib/parse-raw-object.ts";
-import { CommitObject } from "../models/commit-object.ts";
-import { EntryName } from "../models/entry-name.ts";
-import { FileMode } from "../models/file-mode.ts";
-import { TreeEntry, TreeObject } from "../models/tree-object.ts";
 
 const INITIAL_COMMIT_METADATA = "John Doe <john@example.com> 1234567890 +0000";
 
@@ -30,9 +36,17 @@ const makeImpl = Effect.gen(function*() {
 
   const catFile: GitInputPortShape["catFile"] = Effect.fn("GitService.catFile")(
     function*({ hash }) {
-      const buffer = yield* compression.unzip({ content: yield* repository.readObject({ hash }) });
+      const compressed = yield* repository.readObject({ hash });
 
-      return yield* parseRawObject(buffer);
+      const rawObject = yield* compression.unzip({ content: compressed });
+
+      const { body } = yield* decodeObject({ content: rawObject });
+
+      if (body._tag !== "BlobObject") {
+        return yield* Effect.fail(new Error("Object is not a blob object."));
+      }
+
+      return body;
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
@@ -43,7 +57,13 @@ const makeImpl = Effect.gen(function*() {
 
   const hashObject: GitInputPortShape["hashObject"] = Effect.fn("GitService.hashObject")(
     function*({ path, write }) {
-      const content = yield* repository.readWorkingTreeFile({ path });
+      const uncompressedContent = yield* repository.readWorkingTreeFile({ path });
+
+      const blob = new BlobObject({ content: uncompressedContent });
+
+      const body = yield* BlobObject.serializeBody(blob);
+
+      const content = yield* encodeObject({ type: ObjectType.makeUnsafe("blob"), body });
 
       const hash = yield* crypto.hash({ content });
 
@@ -65,15 +85,17 @@ const makeImpl = Effect.gen(function*() {
 
   const listTree: GitInputPortShape["listTree"] = Effect.fn("GitService.listTree")(
     function*({ hash }) {
-      const content = yield* compression.unzip({ content: yield* repository.readObject({ hash }) });
+      const compressed = yield* repository.readObject({ hash });
 
-      const object = yield* parseRawObject(content);
+      const content = yield* compression.unzip({ content: compressed });
 
-      if (object._tag !== "TreeObject") {
+      const { body } = yield* decodeObject({ content });
+
+      if (body._tag !== "TreeObject") {
         return yield* Effect.fail(new Error("Object is not a tree object."));
       }
 
-      return object;
+      return body;
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
@@ -122,7 +144,9 @@ const makeImpl = Effect.gen(function*() {
         }),
       );
 
-      const content = yield* TreeObject.serialize(new TreeObject({ entries }));
+      const body = yield* TreeObject.serializeBody(new TreeObject({ entries }));
+
+      const content = yield* encodeObject({ type: ObjectType.makeUnsafe("tree"), body });
 
       const hash = yield* crypto.hash({ content });
 
@@ -147,7 +171,9 @@ const makeImpl = Effect.gen(function*() {
         message,
       });
 
-      const content = yield* CommitObject.serialize(commit);
+      const body = yield* CommitObject.serializeBody(commit);
+
+      const content = yield* encodeObject({ type: ObjectType.makeUnsafe("commit"), body });
 
       const hash = yield* crypto.hash({ content });
 

@@ -1,4 +1,4 @@
-import { deflateSync, unzipSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
 
 import { Effect, Layer } from "effect";
 
@@ -22,7 +22,7 @@ const makeImpl = Effect.gen(function*() {
 
   const unzip: CompressionOutputPortShape["unzip"] = Effect.fn("CompressionOutputAdapter.unzip")(
     function*({ content }) {
-      return unzipSync(content);
+      return inflateSync(content);
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {

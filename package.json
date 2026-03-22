@@ -6,9 +6,10 @@
     "setup": "bash scripts/setup.sh",
     "dev": "bun run app/main.ts",
     "clean": "rimraf bun.lock node_modules .repos .cursor",
+    "typecheck": "tsc -b tsconfig.json",
     "format:fix": "dprint fmt",
     "format:check": "dprint check",
-    "lint:check": "oxlint",
+    "lint:check": "oxlint && bun run typecheck",
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {

@@ -1,8 +1,7 @@
 import { Array, Effect, FileSystem, Layer, Order, Path, pipe } from "effect";
 
 import { splitObjectLoosePath } from "../domain/lib/split-object-loose-path.ts";
-import { EntryName } from "../domain/models/entry-name.ts";
-import { FilePath } from "../domain/models/file-path.ts";
+import { EntryName, FilePath } from "../domain/models/object.ts";
 import {
   RepositoryOutputPort,
   RepositoryOutputPortError,
@@ -41,7 +40,7 @@ const makeImpl = Effect.gen(function*() {
 
       const content = yield* fs.readFile(path.join(".git", "objects", prefix, suffix));
 
-      return Buffer.from(content);
+      return new Uint8Array(content);
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
@@ -73,7 +72,7 @@ const makeImpl = Effect.gen(function*() {
     function*({ path }) {
       const content = yield* fs.readFile(path);
 
-      return Buffer.from(content);
+      return new Uint8Array(content);
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {

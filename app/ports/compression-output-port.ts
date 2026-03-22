@@ -11,14 +11,14 @@ export type CompressionOutputPortShape = {
   zip: ({
     content,
   }: {
-    content: Buffer;
-  }) => Effect.Effect<Buffer, CompressionOutputPortError, never>;
+    content: Uint8Array<ArrayBuffer>;
+  }) => Effect.Effect<Uint8Array<ArrayBuffer>, CompressionOutputPortError, never>;
 
   unzip: ({
     content,
   }: {
-    content: Buffer;
-  }) => Effect.Effect<Buffer, CompressionOutputPortError, never>;
+    content: Uint8Array<ArrayBuffer>;
+  }) => Effect.Effect<Uint8Array<ArrayBuffer>, CompressionOutputPortError, never>;
 };
 
 export class CompressionOutputPort extends ServiceMap.Service<

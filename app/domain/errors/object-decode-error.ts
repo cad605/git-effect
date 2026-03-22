@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-export const ObjectParseErrorReason = Schema.Literals([
+export const ObjectDecodeErrorReason = Schema.Literals([
   "MissingObjectHeaderNull",
   "InvalidObjectHeader",
   "TreeMissingDelimiter",
@@ -9,10 +9,10 @@ export const ObjectParseErrorReason = Schema.Literals([
   "CommitMalformedHeaders",
 ]);
 
-export class ObjectParseError extends Schema.TaggedErrorClass("ObjectParseError")(
-  "ObjectParseError",
+export class ObjectDecodeError extends Schema.TaggedErrorClass("ObjectDecodeError")(
+  "ObjectDecodeError",
   {
-    reason: ObjectParseErrorReason,
+    reason: ObjectDecodeErrorReason,
     detail: Schema.String,
   },
 ) {}
