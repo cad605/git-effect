@@ -287,7 +287,7 @@ export const decodeObject = Effect.fn("decodeObject")(function*({ content }: { c
     Match.when("blob", () => decodeBlobBody(rawBody)),
     Match.when("tree", () => decodeTreeBody(rawBody)),
     Match.when("commit", () => decodeCommitBody(rawBody)),
-    Match.exhaustive,
+    Match.orElse(() => Effect.fail(new ObjectDecodeError({ reason: new InvalidObjectHeader({ detail: `Unsupported object type '${type}'.` }) }))),
   );
 
   return { header: { type, size }, body };

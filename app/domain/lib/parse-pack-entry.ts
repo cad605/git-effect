@@ -1,6 +1,4 @@
-import { inflateSync } from "node:zlib";
-
-import { Effect, Encoding, Schema } from "effect";
+import { Effect, Encoding, Match } from "effect";
 
 import {
   InflatedSizeMismatch,
@@ -12,6 +10,7 @@ import {
 } from "../errors/packfile-parse-error.ts";
 import { ObjectHash } from "../models/object.ts";
 import { PackEntry, PackObjectType } from "../models/packfile.ts";
+import { inflateRaw } from "../utils/compression.ts";
 
 const PACK_TYPE_BY_CODE = new Map<number, PackObjectType>([
   [1, PackObjectType.makeUnsafe("commit")],
@@ -21,13 +20,6 @@ const PACK_TYPE_BY_CODE = new Map<number, PackObjectType>([
   [6, PackObjectType.makeUnsafe("ofs-delta")],
   [7, PackObjectType.makeUnsafe("ref-delta")],
 ]);
-
-const InflateInfoResult = Schema.Struct({
-  buffer: Schema.instanceOf(Uint8Array),
-  engine: Schema.Struct({
-    bytesWritten: Schema.Number.pipe(Schema.check(Schema.isInt(), Schema.isGreaterThan(0))),
-  }),
-});
 
 const decodeEntryHeader = Effect.fn("decodeEntryHeader")(function*(
   { content, offset }: { content: Uint8Array<ArrayBuffer>; offset: number },
@@ -76,11 +68,21 @@ const decodeEntryHeader = Effect.fn("decodeEntryHeader")(function*(
 
     const nextByte = content[cursor];
     cursor += 1;
-    size |= (nextByte & 0b01111111) << shift;
+    size += (nextByte & 0b01111111) * 2 ** shift;
+    if (!Number.isSafeInteger(size)) {
+      return yield* Effect.fail(
+        new PackfileParseError({
+          reason: new InvalidPackEntryHeader({
+            detail: `Pack entry size varint exceeds supported number range at offset ${offset}.`,
+          }),
+        }),
+      );
+    }
+
     shift += 7;
     hasContinuation = (nextByte & 0b10000000) !== 0;
 
-    if (shift > 32) {
+    if (shift > 56) {
       return yield* Effect.fail(
         new PackfileParseError({
           reason: new InvalidPackEntryHeader({
@@ -177,28 +179,29 @@ const inflatePackEntryPayload = Effect.fn("inflatePackEntryPayload")(function*(
 
   const compressed = content.subarray(offset);
 
-  const inflatedResult = yield* Effect.try({
-    try: () => inflateSync(compressed, { info: true }),
-    catch: (cause) =>
-      new PackfileParseError({
-        reason: new InvalidPackEntryHeader({
-          detail: `Failed to inflate pack entry payload at offset ${offset}: ${String(cause)}`,
-        }),
-      }),
-  });
-
-  const parsedInflateInfo = yield* Schema.decodeUnknownEffect(InflateInfoResult)(inflatedResult).pipe(
+  const inflatedResult = yield* inflateRaw({ content: compressed }).pipe(
     Effect.mapError(
-      () =>
+      (cause) =>
         new PackfileParseError({
           reason: new InvalidPackEntryHeader({
-            detail: `Inflate engine did not provide stream metadata at offset ${offset}.`,
+            detail: `Failed to inflate pack entry payload at offset ${offset}: ${String(cause)}`,
           }),
         }),
     ),
   );
 
-  const consumedBytes = parsedInflateInfo.engine.bytesWritten;
+  const consumedBytes = inflatedResult.compressedSize;
+
+  if (!Number.isInteger(consumedBytes) || consumedBytes <= 0) {
+    return yield* Effect.fail(
+      new PackfileParseError({
+        reason: new InvalidPackEntryHeader({
+          detail: `Invalid compressed payload length '${consumedBytes}' at offset ${offset}.`,
+        }),
+      }),
+    );
+  }
+
   if (offset + consumedBytes > content.byteLength) {
     return yield* Effect.fail(
       new PackfileParseError({
@@ -210,7 +213,7 @@ const inflatePackEntryPayload = Effect.fn("inflatePackEntryPayload")(function*(
   }
 
   return {
-    payload: new Uint8Array(parsedInflateInfo.buffer),
+    payload: inflatedResult.inflated,
     nextOffset: offset + consumedBytes,
   } as const;
 });
@@ -224,25 +227,15 @@ export const parsePackEntry = Effect.fn("parsePackEntry")(function*({
 }) {
   const { type, size, cursor: afterHeader } = yield* decodeEntryHeader({ content, offset });
 
-  let payloadOffset = afterHeader;
-  let baseOffset: number | undefined;
-  let baseHash: ObjectHash | undefined;
-
-  if (type === "ofs-delta") {
-    const decoded = yield* decodeOfsDeltaBaseOffset({ content, offset, entryOffset: offset });
-    baseOffset = decoded.baseOffset;
-    payloadOffset = decoded.cursor;
-  }
-
-  if (type === "ref-delta") {
-    const decoded = yield* decodeRefDeltaBaseHash({ content, offset: payloadOffset });
-    baseHash = decoded.baseHash;
-    payloadOffset = decoded.cursor;
-  }
+  const { cursor: payloadOffset, ...restDecoded } = yield* Match.value(type).pipe(
+    Match.when("ofs-delta", () => decodeOfsDeltaBaseOffset({ content, offset: afterHeader, entryOffset: offset })),
+    Match.when("ref-delta", () => decodeRefDeltaBaseHash({ content, offset: afterHeader })),
+    Match.orElse(() => Effect.succeed({ cursor: afterHeader })),
+  );
 
   const { payload, nextOffset } = yield* inflatePackEntryPayload({ content, offset: payloadOffset });
 
-  if (type !== "ofs-delta" && type !== "ref-delta" && payload.byteLength !== size) {
+  if (payload.byteLength !== size) {
     return yield* Effect.fail(
       new PackfileParseError({
         reason: new InflatedSizeMismatch({
@@ -260,8 +253,7 @@ export const parsePackEntry = Effect.fn("parsePackEntry")(function*({
       type,
       size,
       payload,
-      baseOffset,
-      baseHash,
+      ...restDecoded,
     }),
     nextOffset,
   } as const;

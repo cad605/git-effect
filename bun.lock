@@ -10,7 +10,7 @@
       },
       "devDependencies": {
         "@effect/language-service": "0.80.0",
-        "@effect/vitest": "0.29.0",
+        "@effect/vitest": "4.0.0-beta.37",
         "@types/bun": "1.3.10",
         "dprint": "0.53.0",
         "oxlint": "1.56.0",
@@ -48,7 +48,7 @@
 
     "@effect/platform-node-shared": ["@effect/platform-node-shared@4.0.0-beta.36", "", { "dependencies": { "@types/ws": "^8.18.1", "ws": "^8.19.0" }, "peerDependencies": { "effect": "^4.0.0-beta.36" } }, "sha512-QRK+B2tzMJ4L6uQXj4c1r9cRSCspPPuCF+ptJXWoZXO+fR3mIu1h4rTefTvtPVdiED5t3IhIm252FoMVBWwuZQ=="],
 
-    "@effect/vitest": ["@effect/vitest@0.29.0", "", { "peerDependencies": { "effect": "^3.21.0", "vitest": "^3.2.0" } }, "sha512-DvWr1aeEcaZ8mtu8hNVb4e3rEYvGEwQSr7wsNrW53t6nKYjkmjRICcvVEsXUhjoCblRHSxRsRV0TOt0+UmcvaQ=="],
+    "@effect/vitest": ["@effect/vitest@4.0.0-beta.37", "", { "peerDependencies": { "effect": "^4.0.0-beta.37", "vitest": "^3.0.0 || ^4.0.0" } }, "sha512-Lgwq3qjJk5PuQOpMiOhc4UGEyHt50rUSLrtW6HFQs+JEDx13Nr1iIKgsvGq/6S+2WCfNhmclUts04L+7PKV5rg=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.27.4", "", { "os": "aix", "cpu": "ppc64" }, "sha512-cQPwL2mp2nSmHHJlCyoXgHGhbEPMrEEU5xhkcy3Hs/O7nGZqEpZ2sUtLaL9MORLtDfRvVl2/3PAuEkYZH0Ty8Q=="],
 

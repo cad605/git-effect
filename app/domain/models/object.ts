@@ -84,7 +84,7 @@ export class CommitObject extends Schema.TaggedClass<CommitObject>()("CommitObje
   });
 }
 
-export const ObjectType = Schema.Literals(["tree", "blob", "commit"]).pipe(
+export const ObjectType = Schema.Literals(["tree", "blob", "commit", "tag"]).pipe(
   Schema.brand("ObjectType"),
 );
 

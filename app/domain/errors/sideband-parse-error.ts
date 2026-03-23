@@ -23,6 +23,16 @@ export class MissingPackData extends Schema.TaggedErrorClass<MissingPackData>()(
   detail: Schema.String,
 }) {}
 
+export class UploadPackErrorLine extends Schema.TaggedErrorClass<UploadPackErrorLine>()("UploadPackErrorLine", {
+  message: Schema.String,
+}) {}
+
 export class SidebandParseError extends Schema.TaggedErrorClass<SidebandParseError>()("SidebandParseError", {
-  reason: Schema.Union([MalformedSidebandPacket, UnknownSidebandChannel, FatalSidebandMessage, MissingPackData]),
+  reason: Schema.Union([
+    MalformedSidebandPacket,
+    UnknownSidebandChannel,
+    FatalSidebandMessage,
+    MissingPackData,
+    UploadPackErrorLine,
+  ]),
 }) {}

@@ -3,7 +3,10 @@ import { Effect, Layer, Match } from "effect";
 import { buildUploadPackRequest } from "../../domain/lib/build-upload-pack-request.ts";
 import { decodeObject } from "../../domain/lib/decode-object.ts";
 import { encodeObject } from "../../domain/lib/encode-object.ts";
+import { parseAndResolvePackfile } from "../../domain/lib/parse-and-resolve-packfile.ts";
 import { parseSidebandResponse } from "../../domain/lib/parse-sideband-response.ts";
+import { unzip, zip } from "../../domain/utils/compression.ts";
+import { hashObject as hashObjectContent } from "../../domain/utils/crypto.ts";
 import {
   BlobObject,
   CommitObject,
@@ -13,8 +16,6 @@ import {
   TreeEntry,
   TreeObject,
 } from "../../domain/models/object.ts";
-import { CompressionOutputPort } from "../../ports/compression-output-port.ts";
-import { CryptoOutputPort } from "../../ports/crypto-output-port.ts";
 import {
   CatFileFailed,
   CloneFailed,
@@ -36,8 +37,6 @@ import { TransferProtocolOutputPort } from "../../ports/transfer-protocol-output
 const INITIAL_COMMIT_METADATA = "John Doe <john@example.com> 1234567890 +0000";
 
 const makeImpl = Effect.gen(function*() {
-  const compression = yield* CompressionOutputPort;
-  const crypto = yield* CryptoOutputPort;
   const transferProtocol = yield* TransferProtocolOutputPort;
   const repository = yield* RepositoryOutputPort;
 
@@ -56,7 +55,7 @@ const makeImpl = Effect.gen(function*() {
     function*({ hash }) {
       const compressed = yield* repository.readObject({ hash });
 
-      const rawObject = yield* compression.unzip({ content: compressed });
+      const rawObject = yield* unzip({ content: compressed });
 
       const { body } = yield* decodeObject({ content: rawObject });
 
@@ -83,12 +82,12 @@ const makeImpl = Effect.gen(function*() {
 
       const content = yield* encodeObject({ type: ObjectType.makeUnsafe("blob"), body });
 
-      const hash = yield* crypto.hash({ content });
+      const hash = yield* hashObjectContent({ content });
 
       if (write) {
         yield* repository.writeObject({
           hash,
-          content: yield* compression.zip({ content }),
+          content: yield* zip({ content }),
         });
       }
 
@@ -105,7 +104,7 @@ const makeImpl = Effect.gen(function*() {
     function*({ hash }) {
       const compressed = yield* repository.readObject({ hash });
 
-      const content = yield* compression.unzip({ content: compressed });
+      const content = yield* unzip({ content: compressed });
 
       const { body } = yield* decodeObject({ content });
 
@@ -166,9 +165,9 @@ const makeImpl = Effect.gen(function*() {
 
       const content = yield* encodeObject({ type: ObjectType.makeUnsafe("tree"), body });
 
-      const hash = yield* crypto.hash({ content });
+      const hash = yield* hashObjectContent({ content });
 
-      yield* repository.writeObject({ hash, content: yield* compression.zip({ content }) });
+      yield* repository.writeObject({ hash, content: yield* zip({ content }) });
 
       return hash;
     },
@@ -193,9 +192,9 @@ const makeImpl = Effect.gen(function*() {
 
       const content = yield* encodeObject({ type: ObjectType.makeUnsafe("commit"), body });
 
-      const hash = yield* crypto.hash({ content });
+      const hash = yield* hashObjectContent({ content });
 
-      yield* repository.writeObject({ hash, content: yield* compression.zip({ content }) });
+      yield* repository.writeObject({ hash, content: yield* zip({ content }) });
 
       return hash;
     },
@@ -233,7 +232,13 @@ const makeImpl = Effect.gen(function*() {
         body: requestBody,
       });
 
-      return yield* parseSidebandResponse({ content: uploadPackResponse });
+      const uploadPack = yield* parseSidebandResponse({ content: uploadPackResponse });
+
+      yield* parseAndResolvePackfile({
+        content: uploadPack.packBytes,
+      });
+
+      return uploadPack;
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {

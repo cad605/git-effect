@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-import { ObjectHash } from "./object.ts";
+import { ObjectHash, ObjectType } from "./object.ts";
 
 const NonNegativeInt = Schema.Number.pipe(Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)));
 
@@ -27,4 +27,18 @@ export class PackEntry extends Schema.Class<PackEntry>("PackEntry")({
 export class Packfile extends Schema.Class<Packfile>("Packfile")({
   header: PackHeader,
   entries: Schema.Array(PackEntry),
+}) {}
+
+export class ResolvedPackEntry extends Schema.Class<ResolvedPackEntry>("ResolvedPackEntry")({
+  offset: NonNegativeInt,
+  sourceType: PackObjectType,
+  type: ObjectType,
+  body: Schema.instanceOf(Uint8Array<ArrayBuffer>),
+  baseOffset: Schema.optional(NonNegativeInt),
+  baseHash: Schema.optional(ObjectHash),
+}) {}
+
+export class ResolvedPackfile extends Schema.Class<ResolvedPackfile>("ResolvedPackfile")({
+  header: PackHeader,
+  entries: Schema.Array(ResolvedPackEntry),
 }) {}

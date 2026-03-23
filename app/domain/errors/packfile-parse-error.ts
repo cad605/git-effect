@@ -38,12 +38,46 @@ export class PackObjectCountMismatch
   })
 {}
 
+export class InvalidPackChecksum extends Schema.TaggedErrorClass<InvalidPackChecksum>()("InvalidPackChecksum", {
+  detail: Schema.String,
+}) {}
+
 export class MalformedDeltaBaseReference extends Schema.TaggedErrorClass<MalformedDeltaBaseReference>()(
   "MalformedDeltaBaseReference",
   {
     detail: Schema.String,
   },
 ) {}
+
+export class MissingDeltaBase extends Schema.TaggedErrorClass<MissingDeltaBase>()("MissingDeltaBase", {
+  detail: Schema.String,
+}) {}
+
+export class MalformedDeltaInstruction extends Schema.TaggedErrorClass<MalformedDeltaInstruction>()(
+  "MalformedDeltaInstruction",
+  {
+    detail: Schema.String,
+  },
+) {}
+
+export class DeltaBaseSizeMismatch extends Schema.TaggedErrorClass<DeltaBaseSizeMismatch>()("DeltaBaseSizeMismatch", {
+  expectedSize: Schema.Number,
+  actualSize: Schema.Number,
+  detail: Schema.String,
+}) {}
+
+export class DeltaResultSizeMismatch extends Schema.TaggedErrorClass<DeltaResultSizeMismatch>()(
+  "DeltaResultSizeMismatch",
+  {
+    expectedSize: Schema.Number,
+    actualSize: Schema.Number,
+    detail: Schema.String,
+  },
+) {}
+
+export class DeltaDependencyCycle extends Schema.TaggedErrorClass<DeltaDependencyCycle>()("DeltaDependencyCycle", {
+  detail: Schema.String,
+}) {}
 
 export class PackfileParseError extends Schema.TaggedErrorClass<PackfileParseError>()("PackfileParseError", {
   reason: Schema.Union([
@@ -54,6 +88,12 @@ export class PackfileParseError extends Schema.TaggedErrorClass<PackfileParseErr
     InvalidPackObjectType,
     InflatedSizeMismatch,
     PackObjectCountMismatch,
+    InvalidPackChecksum,
     MalformedDeltaBaseReference,
+    MissingDeltaBase,
+    MalformedDeltaInstruction,
+    DeltaBaseSizeMismatch,
+    DeltaResultSizeMismatch,
+    DeltaDependencyCycle,
   ]),
 }) {}

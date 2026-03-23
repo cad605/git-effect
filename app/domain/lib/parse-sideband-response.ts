@@ -6,6 +6,7 @@ import {
   MissingPackData,
   SidebandParseError,
   UnknownSidebandChannel,
+  UploadPackErrorLine,
 } from "../errors/sideband-parse-error.ts";
 import { UploadPackResult } from "../models/transfer-protocol.ts";
 import { concatBytes } from "../utils/concat-bytes.ts";
@@ -14,6 +15,7 @@ import { decodePktLines } from "./decode-pkt-line.ts";
 const decoder = new TextDecoder();
 
 const CONTROL_PAYLOAD_PATTERN = /^(NAK\n|ACK .*\n|ready\n)$/;
+const ERROR_LINE_PATTERN = /^ERR\s+.*\n?$/;
 
 export const parseSidebandResponse = Effect.fn("parseSidebandResponse")(function*({
   content,
@@ -42,10 +44,22 @@ export const parseSidebandResponse = Effect.fn("parseSidebandResponse")(function
       );
     }
 
-    if (!sawSideband && CONTROL_PAYLOAD_PATTERN.test(decoder.decode(line.payload))) {
+    const payloadText = decoder.decode(line.payload);
+    if (!sawSideband && CONTROL_PAYLOAD_PATTERN.test(payloadText)) {
       continue;
     }
 
+    if (!sawSideband && ERROR_LINE_PATTERN.test(payloadText)) {
+      return yield* Effect.fail(
+        new SidebandParseError({
+          reason: new UploadPackErrorLine({
+            message: payloadText.replace(/^ERR\s+/, "").trimEnd(),
+          }),
+        }),
+      );
+    }
+
+    const wasInSideband = sawSideband;
     sawSideband = true;
 
     const channel = line.payload[0];
@@ -73,10 +87,15 @@ export const parseSidebandResponse = Effect.fn("parseSidebandResponse")(function
 
     return yield* Effect.fail(
       new SidebandParseError({
-        reason: new UnknownSidebandChannel({
-          channel,
-          detail: `Received unsupported sideband channel '${channel}'.`,
-        }),
+        reason: wasInSideband
+          ? new UnknownSidebandChannel({
+              channel,
+              detail: `Received unsupported sideband channel '${channel}'.`,
+            })
+          : new MalformedSidebandPacket({
+              detail:
+                `Expected sideband channel packet after control lines, but received payload starting with byte '${channel}' (${JSON.stringify(payloadText.slice(0, 32))}).`,
+            }),
       }),
     );
   }

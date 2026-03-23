@@ -205,12 +205,26 @@ export const parseRefAdvertisement = Effect.fn("parseRefAdvertisement")(function
 
     const parsed = yield* parseRefLine({ payload: line.payload, allowCapabilities: firstRef });
 
+    if (parsed.ref.name.endsWith("^{}")) {
+      continue;
+    }
+
     refs.push(parsed.ref);
 
     if (firstRef) {
       capabilities = parsed.capabilities;
       firstRef = false;
     }
+  }
+
+  if (!sawTerminalFlush) {
+    return yield* Effect.fail(
+      new RefAdvertisementParseError({
+        reason: new MalformedPacketSequence({
+          detail: "Ref advertisement is missing terminal flush packet.",
+        }),
+      }),
+    );
   }
 
   const headSymrefTarget = yield* resolveHeadSymrefTarget({ refs, capabilities });

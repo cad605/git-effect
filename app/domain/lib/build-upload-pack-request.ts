@@ -1,12 +1,14 @@
 import { Effect } from "effect";
 
+import { MissingUploadPackCapability, UploadPackRequestError } from "../errors/upload-pack-request-error.ts";
 import type { ObjectHash } from "../models/object.ts";
 import { concatBytes } from "../utils/concat-bytes.ts";
 import { encodeFlushPktLine, encodePktLine } from "./encode-pkt-line.ts";
 
 const encoder = new TextEncoder();
 
-const REQUIRED_UPLOAD_PACK_CAPABILITIES = ["side-band-64k", "ofs-delta"] as const;
+const REQUIRED_UPLOAD_PACK_CAPABILITIES = ["side-band-64k"] as const;
+const PREFERRED_UPLOAD_PACK_CAPABILITIES = ["ofs-delta"] as const;
 const OPTIONAL_UPLOAD_PACK_CAPABILITIES = ["no-progress"] as const;
 
 export const buildUploadPackRequest = Effect.fn("buildUploadPackRequest")(function*({
@@ -16,8 +18,21 @@ export const buildUploadPackRequest = Effect.fn("buildUploadPackRequest")(functi
   targetHash: ObjectHash;
   serverCapabilities: ReadonlyArray<string>;
 }) {
+  const missingRequired = REQUIRED_UPLOAD_PACK_CAPABILITIES.find((capability) => !serverCapabilities.includes(capability));
+  if (missingRequired) {
+    return yield* Effect.fail(
+      new UploadPackRequestError({
+        reason: new MissingUploadPackCapability({
+          capability: missingRequired,
+          detail: `Upload-pack advertisement does not include required capability '${missingRequired}' for side-band parsing.`,
+        }),
+      }),
+    );
+  }
+
   const selectedCapabilities = [
-    ...REQUIRED_UPLOAD_PACK_CAPABILITIES.filter((capability) => serverCapabilities.includes(capability)),
+    ...REQUIRED_UPLOAD_PACK_CAPABILITIES,
+    ...PREFERRED_UPLOAD_PACK_CAPABILITIES.filter((capability) => serverCapabilities.includes(capability)),
     ...OPTIONAL_UPLOAD_PACK_CAPABILITIES.filter((capability) => serverCapabilities.includes(capability)),
   ];
 
@@ -38,5 +53,5 @@ export const buildUploadPackRequest = Effect.fn("buildUploadPackRequest")(functi
     encodeFlushPktLine(),
   ]);
 
-  return concatBytes([want, done, flush]);
+  return concatBytes([want, flush, done]);
 });
