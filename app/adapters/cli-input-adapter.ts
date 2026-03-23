@@ -218,15 +218,14 @@ const clone = Command.make(
     const git = yield* GitInputPort;
     const terminal = yield* Terminal.Terminal;
 
-    yield* Effect.logDebug("Clone discovery...", { url, destination });
+    yield* Effect.logDebug("Clone discovery and negotiation...", { url, destination });
 
-    const advertisement = yield* git.clone({ url });
+    const uploadPackResponse = yield* git.clone({ url });
 
     yield* terminal.display(
       [
-        `refs: ${advertisement.refs.length}`,
-        `capabilities: ${advertisement.capabilities.length}`,
-        `head: ${advertisement.headSymrefTarget ?? "<unknown>"}`,
+        "upload-pack negotiation complete",
+        `response-bytes: ${uploadPackResponse.byteLength}`,
       ].join("\n"),
     );
 

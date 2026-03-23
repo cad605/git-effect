@@ -6,12 +6,29 @@ export class DiscoveryHttpStatus extends Schema.TaggedErrorClass<DiscoveryHttpSt
   status: Schema.Number,
 }) {}
 
+export class UploadPackHttpStatus extends Schema.TaggedErrorClass<UploadPackHttpStatus>()("UploadPackHttpStatus", {
+  url: Schema.String,
+  status: Schema.Number,
+}) {}
+
 export class InvalidContentType extends Schema.TaggedErrorClass<InvalidContentType>()("InvalidContentType", {
   url: Schema.String,
   contentType: Schema.String,
 }) {}
 
+export class InvalidUploadPackContentType extends Schema.TaggedErrorClass<InvalidUploadPackContentType>()(
+  "InvalidUploadPackContentType",
+  {
+    url: Schema.String,
+    contentType: Schema.String,
+  },
+) {}
+
 export class EmptyResponseBody extends Schema.TaggedErrorClass<EmptyResponseBody>()("EmptyResponseBody", {
+  url: Schema.String,
+}) {}
+
+export class EmptyUploadPackBody extends Schema.TaggedErrorClass<EmptyUploadPackBody>()("EmptyUploadPackBody", {
   url: Schema.String,
 }) {}
 
@@ -32,8 +49,11 @@ export class TransferProtocolOutputPortError extends Schema.TaggedErrorClass<Tra
   {
     reason: Schema.Union([
       DiscoveryHttpStatus,
+      UploadPackHttpStatus,
       InvalidContentType,
+      InvalidUploadPackContentType,
       EmptyResponseBody,
+      EmptyUploadPackBody,
       AdvertisementParseFailed,
       HttpRequestFailed,
     ]),
@@ -46,6 +66,14 @@ export interface TransferProtocolOutputPortShape {
   }: {
     url: string;
   }) => Effect.Effect<UploadPackAdvertisement, TransferProtocolOutputPortError, never>;
+
+  requestUploadPack: ({
+    url,
+    body,
+  }: {
+    url: string;
+    body: Uint8Array<ArrayBuffer>;
+  }) => Effect.Effect<Uint8Array<ArrayBuffer>, TransferProtocolOutputPortError, never>;
 }
 
 export class TransferProtocolOutputPort extends ServiceMap.Service<

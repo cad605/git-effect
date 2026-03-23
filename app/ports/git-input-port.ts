@@ -1,7 +1,6 @@
 import { type Effect, Schema, ServiceMap } from "effect";
 
 import type { BlobObject, FilePath, ObjectHash, TreeObject } from "../domain/models/object.ts";
-import type { UploadPackAdvertisement } from "../domain/models/transfer-protocol.ts";
 
 export class InitFailed extends Schema.TaggedErrorClass<InitFailed>()("InitFailed", {
   cause: Schema.Defect,
@@ -39,6 +38,10 @@ export class CloneFailed extends Schema.TaggedErrorClass<CloneFailed>()("CloneFa
   cause: Schema.Defect,
 }) {}
 
+export class CloneTargetNotFound extends Schema.TaggedErrorClass<CloneTargetNotFound>()("CloneTargetNotFound", {
+  detail: Schema.String,
+}) {}
+
 export class GitInputPortError extends Schema.TaggedErrorClass<GitInputPortError>()("GitInputPortError", {
   reason: Schema.Union([
     InitFailed,
@@ -50,6 +53,7 @@ export class GitInputPortError extends Schema.TaggedErrorClass<GitInputPortError
     WriteTreeFailed,
     CommitTreeFailed,
     CloneFailed,
+    CloneTargetNotFound,
   ]),
 }) {}
 
@@ -88,7 +92,7 @@ export interface GitInputPortShape {
     url,
   }: {
     url: string;
-  }) => Effect.Effect<UploadPackAdvertisement, GitInputPortError, never>;
+  }) => Effect.Effect<Uint8Array<ArrayBuffer>, GitInputPortError, never>;
 }
 
 export class GitInputPort extends ServiceMap.Service<GitInputPort, GitInputPortShape>()(

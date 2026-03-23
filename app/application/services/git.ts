@@ -1,6 +1,7 @@
 import { Effect, Layer, Match } from "effect";
 
 import { decodeObject } from "../../domain/lib/decode-object.ts";
+import { buildUploadPackRequest } from "../../domain/lib/build-upload-pack-request.ts";
 import { encodeObject } from "../../domain/lib/encode-object.ts";
 import {
   BlobObject,
@@ -16,6 +17,7 @@ import { CryptoOutputPort } from "../../ports/crypto-output-port.ts";
 import {
   CatFileFailed,
   CloneFailed,
+  CloneTargetNotFound,
   CommitTreeFailed,
   GitInputPort,
   GitInputPortError,
@@ -205,7 +207,30 @@ const makeImpl = Effect.gen(function*() {
 
   const clone: GitInputPortShape["clone"] = Effect.fn("GitService.clone")(
     function*({ url }) {
-      return yield* transferProtocol.discoverUploadPackRefs({ url });
+      const advertisement = yield* transferProtocol.discoverUploadPackRefs({ url });
+
+      const targetHash = advertisement.refs.find((ref) => ref.name === advertisement.headSymrefTarget)?.hash;
+
+      if (!targetHash) {
+        return yield* Effect.fail(
+          new GitInputPortError({
+            reason: new CloneTargetNotFound({
+              detail:
+                "Could not resolve a target commit from advertised refs. Expected HEAD symref, refs/heads/main, refs/heads/master, or any heads ref.",
+            }),
+          }),
+        );
+      }
+
+      const requestBody = yield* buildUploadPackRequest({
+        targetHash,
+        serverCapabilities: advertisement.capabilities,
+      });
+
+      return yield* transferProtocol.requestUploadPack({
+        url,
+        body: requestBody,
+      });
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {

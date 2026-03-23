@@ -6,15 +6,20 @@ import {
   AdvertisementParseFailed,
   DiscoveryHttpStatus,
   EmptyResponseBody,
+  EmptyUploadPackBody,
   HttpRequestFailed,
   InvalidContentType,
+  InvalidUploadPackContentType,
   TransferProtocolOutputPort,
   TransferProtocolOutputPortError,
+  UploadPackHttpStatus,
   type TransferProtocolOutputPortShape,
 } from "../ports/transfer-protocol-output-port.ts";
 
 const GIT_UPLOAD_PACK_SERVICE = "git-upload-pack";
 const DISCOVERY_CONTENT_TYPE = "application/x-git-upload-pack-advertisement";
+const UPLOAD_PACK_REQUEST_CONTENT_TYPE = "application/x-git-upload-pack-request";
+const UPLOAD_PACK_RESULT_CONTENT_TYPE = "application/x-git-upload-pack-result";
 
 const makeImpl = Effect.gen(function*() {
   const http = (yield* HttpClient.HttpClient).pipe(
@@ -78,8 +83,53 @@ const makeImpl = Effect.gen(function*() {
     }),
   );
 
+  const requestUploadPack: TransferProtocolOutputPortShape["requestUploadPack"] = Effect.fn(
+    "TransferProtocolOutputAdapter.requestUploadPack",
+  )(
+    function*({ url, body }) {
+      const { headers, arrayBuffer, status } = yield* HttpClientRequest.post(url).pipe(
+        HttpClientRequest.appendUrl("/git-upload-pack"),
+        HttpClientRequest.setHeader("Accept", UPLOAD_PACK_RESULT_CONTENT_TYPE),
+        HttpClientRequest.bodyUint8Array(body, UPLOAD_PACK_REQUEST_CONTENT_TYPE),
+        http.execute,
+      );
+
+      if (status < 200 || status >= 300) {
+        return yield* new TransferProtocolOutputPortError({
+          reason: new UploadPackHttpStatus({ status, url }),
+        });
+      }
+
+      const contentType = headers["content-type"] ?? "";
+
+      if (!contentType.includes(UPLOAD_PACK_RESULT_CONTENT_TYPE)) {
+        return yield* new TransferProtocolOutputPortError({
+          reason: new InvalidUploadPackContentType({ contentType, url }),
+        });
+      }
+
+      const responseBody = new Uint8Array(yield* arrayBuffer);
+
+      if (responseBody.byteLength === 0) {
+        return yield* new TransferProtocolOutputPortError({
+          reason: new EmptyUploadPackBody({ url }),
+        });
+      }
+
+      return responseBody;
+    },
+    Effect.catchTags({
+      "HttpClientError": Effect.fnUntraced(function*(cause) {
+        return yield* new TransferProtocolOutputPortError({
+          reason: new HttpRequestFailed({ cause }),
+        });
+      }),
+    }),
+  );
+
   return {
     discoverUploadPackRefs,
+    requestUploadPack,
   } satisfies TransferProtocolOutputPortShape;
 });
 
