@@ -216,10 +216,19 @@ const clone = Command.make(
   },
   Effect.fn("CliInputAdapter.clone")(function*({ url, destination }) {
     const git = yield* GitInputPort;
+    const terminal = yield* Terminal.Terminal;
 
     yield* Effect.logDebug("Clone discovery...", { url, destination });
 
-    yield* git.clone({ url });
+    const advertisement = yield* git.clone({ url });
+
+    yield* terminal.display(
+      [
+        `refs: ${advertisement.refs.length}`,
+        `capabilities: ${advertisement.capabilities.length}`,
+        `head: ${advertisement.headSymrefTarget ?? "<unknown>"}`,
+      ].join("\n"),
+    );
 
     yield* Effect.logDebug("Done", { success: true });
   }),

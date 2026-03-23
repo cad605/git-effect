@@ -1,6 +1,7 @@
 import { type Effect, Schema, ServiceMap } from "effect";
 
 import type { BlobObject, FilePath, ObjectHash, TreeObject } from "../domain/models/object.ts";
+import type { UploadPackAdvertisement } from "../domain/models/transfer-protocol.ts";
 
 export class GitInputPortError extends Schema.TaggedErrorClass("GitInputPortError")(
   "GitInputPortError",
@@ -45,7 +46,7 @@ export interface GitInputPortShape {
     url,
   }: {
     url: string;
-  }) => Effect.Effect<Uint8Array<ArrayBuffer>, GitInputPortError, never>;
+  }) => Effect.Effect<UploadPackAdvertisement, GitInputPortError, never>;
 }
 
 export class GitInputPort extends ServiceMap.Service<GitInputPort, GitInputPortShape>()(

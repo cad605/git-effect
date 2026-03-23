@@ -1,6 +1,7 @@
 import { Effect, Layer, Schedule } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 
+import { parseRefAdvertisement } from "../domain/lib/parse-ref-advertisement.ts";
 import {
   TransferProtocolOutputPort,
   TransferProtocolOutputPortError,
@@ -54,7 +55,15 @@ const makeImpl = Effect.gen(function*() {
         });
       }
 
-      return body;
+      return yield* parseRefAdvertisement({ content: body }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new TransferProtocolOutputPortError({
+              message: `Failed to parse upload-pack advertisement payload for URL: ${url}`,
+              cause,
+            }),
+        ),
+      );
     },
     Effect.catchTags({
       "HttpClientError": Effect.fnUntraced(function*(cause) {
