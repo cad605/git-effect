@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 
-import { PktLineEncodeError } from "../errors/pkt-line-error.ts";
+import { LengthOverflow, PktLineEncodeError } from "../errors/pkt-line-error.ts";
 import { concatBytes } from "../utils/concat-bytes.ts";
 
 const encoder = new TextEncoder();
@@ -27,10 +27,11 @@ export const encodePktLine = Effect.fn("encodePktLine")(function*({
     Effect.mapError(
       () =>
         new PktLineEncodeError({
-          reason: "LengthOverflow",
-          detail: `Pkt-line payload length ${payload.length} exceeds max packet size ${
-            MAX_PACKET_LENGTH - LENGTH_PREFIX_SIZE
-          }.`,
+          reason: new LengthOverflow({
+            detail: `Pkt-line payload length ${payload.length} exceeds max packet size ${
+              MAX_PACKET_LENGTH - LENGTH_PREFIX_SIZE
+            }.`,
+          }),
         }),
     ),
   );

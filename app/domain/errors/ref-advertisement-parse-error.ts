@@ -1,16 +1,41 @@
 import { Schema } from "effect";
 
-export const RefAdvertisementParseErrorReason = Schema.Literals([
+export class MissingServicePrelude extends Schema.TaggedErrorClass<MissingServicePrelude>()(
   "MissingServicePrelude",
-  "MissingServiceFlush",
-  "MalformedRefLine",
-  "MalformedPacketSequence",
-]);
+  {
+    detail: Schema.String,
+  },
+) {}
 
-export class RefAdvertisementParseError extends Schema.TaggedErrorClass("RefAdvertisementParseError")(
+export class MissingServiceFlush extends Schema.TaggedErrorClass<MissingServiceFlush>()(
+  "MissingServiceFlush",
+  {
+    detail: Schema.String,
+  },
+) {}
+
+export class MalformedRefLine extends Schema.TaggedErrorClass<MalformedRefLine>()(
+  "MalformedRefLine",
+  {
+    detail: Schema.String,
+  },
+) {}
+
+export class MalformedPacketSequence extends Schema.TaggedErrorClass<MalformedPacketSequence>()(
+  "MalformedPacketSequence",
+  {
+    detail: Schema.String,
+  },
+) {}
+
+export class RefAdvertisementParseError extends Schema.TaggedErrorClass<RefAdvertisementParseError>()(
   "RefAdvertisementParseError",
   {
-    reason: RefAdvertisementParseErrorReason,
-    detail: Schema.String,
+    reason: Schema.Union([
+      MissingServicePrelude,
+      MissingServiceFlush,
+      MalformedRefLine,
+      MalformedPacketSequence,
+    ]),
   },
 ) {}

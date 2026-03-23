@@ -15,6 +15,7 @@ describe("decodeObject", () => {
       );
 
       assert.strictEqual(error._tag, "ObjectDecodeError");
+      assert.strictEqual(error.reason._tag, "InvalidObjectHeader");
     }));
 
   it.effect("fails when header size is invalid", () =>
@@ -27,5 +28,6 @@ describe("decodeObject", () => {
       );
 
       assert.strictEqual(error._tag, "ObjectDecodeError");
+      assert.strictEqual(error.reason._tag, "InvalidObjectHeader");
     }));
 });

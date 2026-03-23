@@ -64,7 +64,7 @@ describe("parseRefAdvertisement", () => {
       );
       assert.strictEqual(error._tag, "RefAdvertisementParseError");
       if (error._tag === "RefAdvertisementParseError") {
-        assert.strictEqual(error.reason, "MissingServiceFlush");
+        assert.strictEqual(error.reason._tag, "MissingServiceFlush");
       }
     }));
 
@@ -77,7 +77,7 @@ describe("parseRefAdvertisement", () => {
       );
       assert.strictEqual(error._tag, "RefAdvertisementParseError");
       if (error._tag === "RefAdvertisementParseError") {
-        assert.strictEqual(error.reason, "MissingServicePrelude");
+        assert.strictEqual(error.reason._tag, "MissingServicePrelude");
       }
     }));
 
@@ -103,7 +103,7 @@ describe("parseRefAdvertisement", () => {
       );
       assert.strictEqual(error._tag, "RefAdvertisementParseError");
       if (error._tag === "RefAdvertisementParseError") {
-        assert.strictEqual(error.reason, "MalformedRefLine");
+        assert.strictEqual(error.reason._tag, "MalformedRefLine ");
       }
     }));
 });

@@ -1,6 +1,12 @@
 import { Effect, Schema, SchemaGetter } from "effect";
 
-import { RefAdvertisementParseError } from "../errors/ref-advertisement-parse-error.ts";
+import {
+  MalformedPacketSequence,
+  MalformedRefLine,
+  MissingServiceFlush,
+  MissingServicePrelude,
+  RefAdvertisementParseError,
+} from "../errors/ref-advertisement-parse-error.ts";
 import { ObjectHash } from "../models/object.ts";
 import { AdvertisedRef, RefName, UploadPackAdvertisement } from "../models/transfer-protocol.ts";
 import { decodePktLines, PktLineData, PktLineFlush } from "./decode-pkt-line.ts";
@@ -66,8 +72,9 @@ const parseRefIdentity = Effect.fn("parseRefIdentity")(function*(raw: string) {
   if (separatorIndex === -1) {
     return yield* Effect.fail(
       new RefAdvertisementParseError({
-        reason: "MalformedRefLine",
-        detail: `Expected '<hash> <name>' ref identity, received '${raw}'.`,
+        reason: new MalformedRefLine({
+          detail: `Expected '<hash> <name>' ref identity, received '${raw}'.`,
+        }),
       }),
     );
   }
@@ -86,10 +93,11 @@ const parseRefLine = Effect.fn("parseRefLine")(
       Effect.mapError(
         () =>
           new RefAdvertisementParseError({
-            reason: "MalformedRefLine",
-            detail: allowCapabilities
-              ? "Ref line is malformed or missing trailing newline."
-              : "Only first ref line may include capability data.",
+            reason: new MalformedRefLine({
+              detail: allowCapabilities
+                ? "Ref line is malformed or missing trailing newline."
+                : "Only first ref line may include capability data.",
+            }),
           }),
       ),
     );
@@ -156,8 +164,9 @@ export const parseRefAdvertisement = Effect.fn("parseRefAdvertisement")(function
     Effect.mapError(
       () =>
         new RefAdvertisementParseError({
-          reason: "MissingServicePrelude",
-          detail: "Discovery response is missing or has an invalid '# service=git-upload-pack' prelude packet.",
+          reason: new MissingServicePrelude({
+            detail: "Discovery response is missing or has an invalid '# service=git-upload-pack' prelude packet.",
+          }),
         }),
     ),
   );
@@ -166,8 +175,9 @@ export const parseRefAdvertisement = Effect.fn("parseRefAdvertisement")(function
     Effect.mapError(
       () =>
         new RefAdvertisementParseError({
-          reason: "MissingServiceFlush",
-          detail: "Discovery response is missing flush packet after service prelude.",
+          reason: new MissingServiceFlush({
+            detail: "Discovery response is missing flush packet after service prelude.",
+          }),
         }),
     ),
   );
@@ -186,8 +196,9 @@ export const parseRefAdvertisement = Effect.fn("parseRefAdvertisement")(function
     if (sawTerminalFlush) {
       return yield* Effect.fail(
         new RefAdvertisementParseError({
-          reason: "MalformedPacketSequence",
-          detail: "Found data packet after terminal flush packet.",
+          reason: new MalformedPacketSequence({
+            detail: "Found data packet after terminal flush packet.",
+          }),
         }),
       );
     }

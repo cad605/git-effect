@@ -13,6 +13,27 @@ describe("encodePktLine", () => {
         }),
       );
 
-      assert.strictEqual(error.reason, "LengthOverflow");
+      assert.strictEqual(error._tag, "PktLineEncodeError");
+      assert.strictEqual(error.reason._tag, "LengthOverflow");
+    }));
+
+  it.effect("recovers overflow using catchReason", () =>
+    Effect.gen(function*() {
+      const payload = new Uint8Array(0xffff - 3);
+
+      const detail = yield* encodePktLine({
+        payload,
+      }).pipe(
+        Effect.catchReason(
+          "PktLineEncodeError",
+          "LengthOverflow",
+          (reason) => Effect.succeed(reason.detail),
+        ),
+      );
+
+      assert.strictEqual(
+        detail,
+        `Pkt-line payload length ${payload.length} exceeds max packet size ${0xffff - 4}.`,
+      );
     }));
 });

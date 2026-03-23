@@ -1,6 +1,11 @@
 import { Effect, Schema, SchemaGetter } from "effect";
 
-import { PktLineDecodeError } from "../errors/pkt-line-error.ts";
+import {
+  InvalidLengthPrefix,
+  InvalidLengthValue,
+  PktLineDecodeError,
+  UnexpectedEOF,
+} from "../errors/pkt-line-error.ts";
 
 const decoder = new TextDecoder();
 
@@ -40,8 +45,9 @@ const decodeLength = Effect.fn("decodeLength")(function*(buffer: Uint8Array<Arra
   if (offset + LENGTH_PREFIX_SIZE > buffer.length) {
     return yield* Effect.fail(
       new PktLineDecodeError({
-        reason: "UnexpectedEOF",
-        detail: `Missing length prefix at offset ${offset}.`,
+        reason: new UnexpectedEOF({
+          detail: `Missing length prefix at offset ${offset}.`,
+        }),
       }),
     );
   }
@@ -52,8 +58,9 @@ const decodeLength = Effect.fn("decodeLength")(function*(buffer: Uint8Array<Arra
     Effect.mapError(
       () =>
         new PktLineDecodeError({
-          reason: "InvalidLengthPrefix",
-          detail: `Invalid pkt-line length prefix '${prefix}' at offset ${offset}.`,
+          reason: new InvalidLengthPrefix({
+            detail: `Invalid pkt-line length prefix '${prefix}' at offset ${offset}.`,
+          }),
         }),
     ),
   );
@@ -62,8 +69,9 @@ const decodeLength = Effect.fn("decodeLength")(function*(buffer: Uint8Array<Arra
     Effect.mapError(
       () =>
         new PktLineDecodeError({
-          reason: "InvalidLengthValue",
-          detail: `Failed to parse pkt-line length '${prefix}' at offset ${offset}.`,
+          reason: new InvalidLengthValue({
+            detail: `Failed to parse pkt-line length '${prefix}' at offset ${offset}.`,
+          }),
         }),
     ),
   );
@@ -90,9 +98,10 @@ const decodePktLineAt = Effect.fn("decodePktLineAt")(
     if (payloadEnd > content.length) {
       return yield* Effect.fail(
         new PktLineDecodeError({
-          reason: "UnexpectedEOF",
-          detail:
-            `Expected ${payloadLength} payload bytes at offset ${payloadStart}, but stream ended at ${content.length}.`,
+          reason: new UnexpectedEOF({
+            detail:
+              `Expected ${payloadLength} payload bytes at offset ${payloadStart}, but stream ended at ${content.length}.`,
+          }),
         }),
       );
     }

@@ -1,6 +1,15 @@
 import { Effect, Encoding, Match, Schema, SchemaGetter, String } from "effect";
 
-import { ObjectDecodeError } from "../errors/object-decode-error.ts";
+import {
+  CommitMalformedHeaders,
+  InvalidObjectHeader,
+  MissingObjectHeaderNull,
+  ObjectDecodeError,
+  TreeDecodeError,
+  TreeMissingDelimiter,
+  TreeTrailingBytes,
+  TreeTruncatedHash,
+} from "../errors/object-decode-error.ts";
 import { BlobObject, CommitObject, ObjectHash, ObjectType, TreeEntry, TreeObject } from "../models/object.ts";
 
 const decoder = new TextDecoder();
@@ -37,8 +46,9 @@ const readUntil = Effect.fn("readUntil")(function*(buffer: Uint8Array<ArrayBuffe
   if (idx === -1) {
     return yield* Effect.fail(
       new ObjectDecodeError({
-        reason: "TreeMissingDelimiter",
-        detail: `Missing delimiter 0x${delimiter.toString(16)} at offset ${offset}.`,
+        reason: new TreeMissingDelimiter({
+          detail: `Missing delimiter 0x${delimiter.toString(16)} at offset ${offset}.`,
+        }),
       }),
     );
   }
@@ -50,8 +60,9 @@ const readBytes = Effect.fn("readBytes")(function*(buffer: Uint8Array<ArrayBuffe
   if (offset + length > buffer.length) {
     return yield* Effect.fail(
       new ObjectDecodeError({
-        reason: "TreeTruncatedHash",
-        detail: `Expected ${length} bytes at offset ${offset}, body length is ${buffer.length}.`,
+        reason: new TreeTruncatedHash({
+          detail: `Expected ${length} bytes at offset ${offset}, body length is ${buffer.length}.`,
+        }),
       }),
     );
   }
@@ -80,13 +91,25 @@ const decodeTreeBody = Effect.fn("decodeTreeBody")(function*(body: Uint8Array<Ar
   if (offset !== body.length) {
     return yield* Effect.fail(
       new ObjectDecodeError({
-        reason: "TreeTrailingBytes",
-        detail: `Stopped at offset ${offset}, but body length is ${body.length}.`,
+        reason: new TreeTrailingBytes({
+          detail: `Stopped at offset ${offset}, but body length is ${body.length}.`,
+        }),
       }),
     );
   }
 
-  return new TreeObject({ entries: yield* Schema.decodeUnknownEffect(Schema.Array(TreeEntry))(content) });
+  const entries = yield* Schema.decodeUnknownEffect(Schema.Array(TreeEntry))(content).pipe(
+    Effect.mapError(
+      () =>
+        new ObjectDecodeError({
+          reason: new TreeDecodeError({
+            detail: `Failed to decode tree entries.`,
+          }),
+        }),
+    ),
+  );
+
+  return new TreeObject({ entries });
 });
 
 const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Array<ArrayBuffer>) {
@@ -107,19 +130,38 @@ const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Arra
             if (tree) {
               return yield* Effect.fail(
                 new ObjectDecodeError({
-                  reason: "CommitMalformedHeaders",
-                  detail: "Commit contains duplicate 'tree' headers.",
+                  reason: new CommitMalformedHeaders({
+                    detail: "Commit contains duplicate 'tree' headers.",
+                  }),
                 }),
               );
             }
 
-            tree = yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("tree ".length)(line));
+            tree = yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("tree ".length)(line)).pipe(
+              Effect.mapError(
+                () =>
+                  new ObjectDecodeError({
+                    reason: new CommitMalformedHeaders({
+                      detail: "Commit contains invalid 'tree' header.",
+                    }),
+                  }),
+              ),
+            );
           }),
         ),
         Match.when(
           String.startsWith("parent "),
           Effect.fnUntraced(function*() {
-            parents.push(yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("parent ".length)(line)));
+            parents.push(yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("parent ".length)(line)).pipe(
+              Effect.mapError(
+                () =>
+                  new ObjectDecodeError({
+                    reason: new CommitMalformedHeaders({
+                      detail: "Commit contains invalid 'parent' header.",
+                    }),
+                  }),
+              ),
+            ));
           }),
         ),
         Match.when(
@@ -128,8 +170,9 @@ const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Arra
             if (author) {
               return yield* Effect.fail(
                 new ObjectDecodeError({
-                  reason: "CommitMalformedHeaders",
-                  detail: "Commit contains duplicate 'author' headers.",
+                  reason: new CommitMalformedHeaders({
+                    detail: "Commit contains duplicate 'author' headers.",
+                  }),
                 }),
               );
             }
@@ -143,8 +186,9 @@ const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Arra
             if (committer) {
               return yield* Effect.fail(
                 new ObjectDecodeError({
-                  reason: "CommitMalformedHeaders",
-                  detail: "Commit contains duplicate 'committer' headers.",
+                  reason: new CommitMalformedHeaders({
+                    detail: "Commit contains duplicate 'committer' headers.",
+                  }),
                 }),
               );
             }
@@ -155,8 +199,9 @@ const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Arra
         Match.orElse(Effect.fnUntraced(function*() {
           return yield* Effect.fail(
             new ObjectDecodeError({
-              reason: "CommitMalformedHeaders",
-              detail: "Commit contains unknown header.",
+              reason: new CommitMalformedHeaders({
+                detail: "Commit contains unknown header.",
+              }),
             }),
           );
         })),
@@ -168,8 +213,9 @@ const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Arra
   if (!tree) {
     return yield* Effect.fail(
       new ObjectDecodeError({
-        reason: "CommitMalformedHeaders",
-        detail: "Commit is missing required 'tree' header.",
+        reason: new CommitMalformedHeaders({
+          detail: "Commit is missing required 'tree' header.",
+        }),
       }),
     );
   }
@@ -177,8 +223,9 @@ const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Arra
   if (!author) {
     return yield* Effect.fail(
       new ObjectDecodeError({
-        reason: "CommitMalformedHeaders",
-        detail: "Commit is missing required 'author' header.",
+        reason: new CommitMalformedHeaders({
+          detail: "Commit is missing required 'author' header.",
+        }),
       }),
     );
   }
@@ -186,8 +233,9 @@ const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Arra
   if (!committer) {
     return yield* Effect.fail(
       new ObjectDecodeError({
-        reason: "CommitMalformedHeaders",
-        detail: "Commit is missing required 'committer' header.",
+        reason: new CommitMalformedHeaders({
+          detail: "Commit is missing required 'committer' header.",
+        }),
       }),
     );
   }
@@ -201,8 +249,9 @@ export const decodeObject = Effect.fn("decodeObject")(function*({ content }: { c
   if (nullIndex === -1) {
     return yield* Effect.fail(
       new ObjectDecodeError({
-        reason: "MissingObjectHeaderNull",
-        detail: "Object header does not contain a NULL delimiter.",
+        reason: new MissingObjectHeaderNull({
+          detail: "Object header does not contain a NULL delimiter.",
+        }),
       }),
     );
   }
@@ -213,8 +262,9 @@ export const decodeObject = Effect.fn("decodeObject")(function*({ content }: { c
     Effect.mapError(
       () =>
         new ObjectDecodeError({
-          reason: "InvalidObjectHeader",
-          detail: `Expected valid '<type> <size>' header, received '${header}'.`,
+          reason: new InvalidObjectHeader({
+            detail: `Expected valid '<type> <size>' header, received '${header}'.`,
+          }),
         }),
     ),
   );
@@ -224,8 +274,9 @@ export const decodeObject = Effect.fn("decodeObject")(function*({ content }: { c
   if (rawBody.length !== size) {
     return yield* Effect.fail(
       new ObjectDecodeError({
-        reason: "InvalidObjectHeader",
-        detail: `Header size ${size} does not match body length ${rawBody.length}.`,
+        reason: new InvalidObjectHeader({
+          detail: `Header size ${size} does not match body length ${rawBody.length}.`,
+        }),
       }),
     );
   }
