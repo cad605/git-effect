@@ -3,6 +3,11 @@ import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 
 import { parseRefAdvertisement } from "../domain/lib/parse-ref-advertisement.ts";
 import {
+  AdvertisementParseFailed,
+  DiscoveryHttpStatus,
+  EmptyResponseBody,
+  HttpRequestFailed,
+  InvalidContentType,
   TransferProtocolOutputPort,
   TransferProtocolOutputPortError,
   type TransferProtocolOutputPortShape,
@@ -32,8 +37,7 @@ const makeImpl = Effect.gen(function*() {
 
       if (status < 200 || status >= 300) {
         return yield* new TransferProtocolOutputPortError({
-          message: `Upload-pack discovery failed with status ${status} for URL: ${url}`,
-          cause: new Error("Unexpected discovery status code"),
+          reason: new DiscoveryHttpStatus({ status, url }),
         });
       }
 
@@ -41,8 +45,7 @@ const makeImpl = Effect.gen(function*() {
 
       if (!contentType.includes(DISCOVERY_CONTENT_TYPE)) {
         return yield* new TransferProtocolOutputPortError({
-          message: `Unexpected content-type "${contentType}" from upload-pack discovery at ${url}`,
-          cause: new Error("Unexpected discovery content-type"),
+          reason: new InvalidContentType({ contentType, url }),
         });
       }
 
@@ -50,8 +53,7 @@ const makeImpl = Effect.gen(function*() {
 
       if (body.byteLength === 0) {
         return yield* new TransferProtocolOutputPortError({
-          message: `Upload-pack discovery returned an empty payload for URL: ${url}`,
-          cause: new Error("Empty discovery payload"),
+          reason: new EmptyResponseBody({ url }),
         });
       }
 
@@ -59,8 +61,10 @@ const makeImpl = Effect.gen(function*() {
         Effect.mapError(
           (cause) =>
             new TransferProtocolOutputPortError({
-              message: `Failed to parse upload-pack advertisement payload for URL: ${url}`,
-              cause,
+              reason: new AdvertisementParseFailed({
+                url,
+                cause,
+              }),
             }),
         ),
       );
@@ -68,8 +72,7 @@ const makeImpl = Effect.gen(function*() {
     Effect.catchTags({
       "HttpClientError": Effect.fnUntraced(function*(cause) {
         return yield* new TransferProtocolOutputPortError({
-          message: "Failed to execute upload-pack discovery request",
-          cause,
+          reason: new HttpRequestFailed({ cause }),
         });
       }),
     }),

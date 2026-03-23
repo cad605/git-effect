@@ -3,11 +3,17 @@ import { Array, Effect, FileSystem, Layer, Order, Path, pipe } from "effect";
 import { splitObjectLoosePath } from "../domain/lib/split-object-loose-path.ts";
 import { EntryName, FilePath } from "../domain/models/object.ts";
 import {
+  InitRepositoryFailed,
+  ListWorkingTreeEntriesFailed,
+  ReadObjectFailed,
+  ReadWorkingTreeFileFailed,
   RepositoryOutputPort,
   RepositoryOutputPortError,
   type RepositoryOutputPortShape,
+  UnsupportedFileType,
   WorkingTreeEntry,
   WorkingTreeEntryType,
+  WriteObjectFailed,
 } from "../ports/repository-output-port.ts";
 
 const makeImpl = Effect.gen(function*() {
@@ -25,8 +31,9 @@ const makeImpl = Effect.gen(function*() {
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({
-          message: "Failed to initialize repository storage",
-          cause,
+          reason: new InitRepositoryFailed({
+            cause,
+          }),
         });
       }),
     ),
@@ -44,7 +51,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new RepositoryOutputPortError({ message: "Failed to read object", cause });
+        return yield* new RepositoryOutputPortError({ reason: new ReadObjectFailed({ cause }) });
       }),
     ),
   );
@@ -61,7 +68,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new RepositoryOutputPortError({ message: "Failed to write object", cause });
+        return yield* new RepositoryOutputPortError({ reason: new WriteObjectFailed({ cause }) });
       }),
     ),
   );
@@ -77,8 +84,9 @@ const makeImpl = Effect.gen(function*() {
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({
-          message: "Failed to read working tree file",
-          cause,
+          reason: new ReadWorkingTreeFileFailed({
+            cause,
+          }),
         });
       }),
     ),
@@ -101,7 +109,13 @@ const makeImpl = Effect.gen(function*() {
             const { type } = yield* fs.stat(entryPath);
 
             if (type !== "File" && type !== "Directory") {
-              return yield* Effect.fail(new Error(`Unsupported file type: ${type}`));
+              return yield* Effect.fail(
+                new RepositoryOutputPortError({
+                  reason: new UnsupportedFileType({
+                    type,
+                  }),
+                }),
+              );
             }
 
             return new WorkingTreeEntry({
@@ -113,11 +127,30 @@ const makeImpl = Effect.gen(function*() {
         ),
       );
     },
+    Effect.catchReason(
+      "RepositoryOutputPortError",
+      "UnsupportedFileType",
+      Effect.fnUntraced(function*(reason) {
+        return yield* Effect.fail(
+          new RepositoryOutputPortError({
+            reason,
+          }),
+        );
+      }),
+      Effect.fnUntraced(function*(reason) {
+        return yield* Effect.fail(
+          new RepositoryOutputPortError({
+            reason,
+          }),
+        );
+      }),
+    ),
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({
-          message: "Failed to list working tree entries",
-          cause,
+          reason: new ListWorkingTreeEntriesFailed({
+            cause,
+          }),
         });
       }),
     ),

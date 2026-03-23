@@ -2,11 +2,47 @@ import { type Effect, Schema, ServiceMap } from "effect";
 
 import { EntryName, FilePath, type ObjectHash } from "../domain/models/object.ts";
 
-export class RepositoryOutputPortError extends Schema.TaggedErrorClass("RepositoryOutputPortError")(
+export class InitRepositoryFailed extends Schema.TaggedErrorClass<InitRepositoryFailed>()("InitRepositoryFailed", {
+  cause: Schema.Defect,
+}) {}
+
+export class ReadObjectFailed extends Schema.TaggedErrorClass<ReadObjectFailed>()("ReadObjectFailed", {
+  cause: Schema.Defect,
+}) {}
+
+export class WriteObjectFailed extends Schema.TaggedErrorClass<WriteObjectFailed>()("WriteObjectFailed", {
+  cause: Schema.Defect,
+}) {}
+
+export class ReadWorkingTreeFileFailed extends Schema.TaggedErrorClass<ReadWorkingTreeFileFailed>()(
+  "ReadWorkingTreeFileFailed",
+  {
+    cause: Schema.Defect,
+  },
+) {}
+
+export class ListWorkingTreeEntriesFailed extends Schema.TaggedErrorClass<ListWorkingTreeEntriesFailed>()(
+  "ListWorkingTreeEntriesFailed",
+  {
+    cause: Schema.Defect,
+  },
+) {}
+
+export class UnsupportedFileType extends Schema.TaggedErrorClass<UnsupportedFileType>()("UnsupportedFileType", {
+  type: Schema.String,
+}) {}
+
+export class RepositoryOutputPortError extends Schema.TaggedErrorClass<RepositoryOutputPortError>()(
   "RepositoryOutputPortError",
   {
-    message: Schema.String,
-    cause: Schema.Defect,
+    reason: Schema.Union([
+      InitRepositoryFailed,
+      ReadObjectFailed,
+      WriteObjectFailed,
+      ReadWorkingTreeFileFailed,
+      ListWorkingTreeEntriesFailed,
+      UnsupportedFileType,
+    ]),
   },
 ) {}
 

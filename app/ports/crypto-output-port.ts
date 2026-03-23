@@ -2,13 +2,13 @@ import { type Effect, Schema, ServiceMap } from "effect";
 
 import type { ObjectHash } from "../domain/models/object.ts";
 
-export class CryptoOutputPortError extends Schema.TaggedErrorClass("CryptoOutputPortError")(
-  "CryptoOutputPortError",
-  {
-    message: Schema.String,
-    cause: Schema.Defect,
-  },
-) {}
+export class HashingFailed extends Schema.TaggedErrorClass<HashingFailed>()("HashingFailed", {
+  cause: Schema.Defect,
+}) {}
+
+export class CryptoOutputPortError extends Schema.TaggedErrorClass<CryptoOutputPortError>()("CryptoOutputPortError", {
+  reason: Schema.Union([HashingFailed]),
+}) {}
 
 export interface CryptoOutputPortShape {
   hash: ({

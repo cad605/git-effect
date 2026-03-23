@@ -28,4 +28,4 @@ export class LengthOverflow extends Schema.TaggedErrorClass<LengthOverflow>()("L
 
 export class PktLineEncodeError extends Schema.TaggedErrorClass<PktLineEncodeError>()("PktLineEncodeError", {
   reason: Schema.Union([LengthOverflow]),
-}) {} 
+}) {}

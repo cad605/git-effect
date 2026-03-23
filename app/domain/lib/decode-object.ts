@@ -152,16 +152,18 @@ const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Arra
         Match.when(
           String.startsWith("parent "),
           Effect.fnUntraced(function*() {
-            parents.push(yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("parent ".length)(line)).pipe(
-              Effect.mapError(
-                () =>
-                  new ObjectDecodeError({
-                    reason: new CommitMalformedHeaders({
-                      detail: "Commit contains invalid 'parent' header.",
+            parents.push(
+              yield* Schema.decodeUnknownEffect(ObjectHash)(String.slice("parent ".length)(line)).pipe(
+                Effect.mapError(
+                  () =>
+                    new ObjectDecodeError({
+                      reason: new CommitMalformedHeaders({
+                        detail: "Commit contains invalid 'parent' header.",
+                      }),
                     }),
-                  }),
+                ),
               ),
-            ));
+            );
           }),
         ),
         Match.when(

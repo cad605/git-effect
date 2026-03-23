@@ -6,6 +6,8 @@ import {
   CompressionOutputPort,
   CompressionOutputPortError,
   type CompressionOutputPortShape,
+  UnzipFailed,
+  ZipFailed,
 } from "../ports/compression-output-port.ts";
 
 const makeImpl = Effect.gen(function*() {
@@ -15,7 +17,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new CompressionOutputPortError({ message: "Compression failed", cause });
+        return yield* new CompressionOutputPortError({ reason: new ZipFailed({ cause }) });
       }),
     ),
   );
@@ -26,7 +28,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new CompressionOutputPortError({ message: "Compression failed", cause });
+        return yield* new CompressionOutputPortError({ reason: new UnzipFailed({ cause }) });
       }),
     ),
   );

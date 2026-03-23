@@ -13,7 +13,20 @@ import {
 } from "../../domain/models/object.ts";
 import { CompressionOutputPort } from "../../ports/compression-output-port.ts";
 import { CryptoOutputPort } from "../../ports/crypto-output-port.ts";
-import { GitInputPort, GitInputPortError, type GitInputPortShape } from "../../ports/git-input-port.ts";
+import {
+  CatFileFailed,
+  CloneFailed,
+  CommitTreeFailed,
+  GitInputPort,
+  GitInputPortError,
+  type GitInputPortShape,
+  HashObjectFailed,
+  InitFailed,
+  ListTreeFailed,
+  NotBlobObject,
+  NotTreeObject,
+  WriteTreeFailed,
+} from "../../ports/git-input-port.ts";
 import { RepositoryOutputPort } from "../../ports/repository-output-port.ts";
 import { TransferProtocolOutputPort } from "../../ports/transfer-protocol-output-port.ts";
 
@@ -31,7 +44,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new GitInputPortError({ message: "Failed to initialize .git", cause });
+        return yield* new GitInputPortError({ reason: new InitFailed({ cause }) });
       }),
     ),
   );
@@ -45,14 +58,14 @@ const makeImpl = Effect.gen(function*() {
       const { body } = yield* decodeObject({ content: rawObject });
 
       if (body._tag !== "BlobObject") {
-        return yield* Effect.fail(new Error("Object is not a blob object."));
+        return yield* Effect.fail(new GitInputPortError({ reason: new NotBlobObject({ actualType: body._tag }) }));
       }
 
       return body;
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new GitInputPortError({ message: "Failed to cat file", cause });
+        return yield* new GitInputPortError({ reason: new CatFileFailed({ cause }) });
       }),
     ),
   );
@@ -80,7 +93,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new GitInputPortError({ message: "Failed to hash object", cause });
+        return yield* new GitInputPortError({ reason: new HashObjectFailed({ cause }) });
       }),
     ),
   );
@@ -94,14 +107,14 @@ const makeImpl = Effect.gen(function*() {
       const { body } = yield* decodeObject({ content });
 
       if (body._tag !== "TreeObject") {
-        return yield* Effect.fail(new Error("Object is not a tree object."));
+        return yield* Effect.fail(new GitInputPortError({ reason: new NotTreeObject({ actualType: body._tag }) }));
       }
 
       return body;
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new GitInputPortError({ message: "Failed to list tree", cause });
+        return yield* new GitInputPortError({ reason: new ListTreeFailed({ cause }) });
       }),
     ),
   );
@@ -158,7 +171,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new GitInputPortError({ message: "Failed to write tree", cause });
+        return yield* new GitInputPortError({ reason: new WriteTreeFailed({ cause }) });
       }),
     ),
   );
@@ -185,7 +198,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new GitInputPortError({ message: "Failed to commit tree", cause });
+        return yield* new GitInputPortError({ reason: new CommitTreeFailed({ cause }) });
       }),
     ),
   );
@@ -197,8 +210,9 @@ const makeImpl = Effect.gen(function*() {
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
         return yield* new GitInputPortError({
-          message: "Failed to run clone discovery request",
-          cause,
+          reason: new CloneFailed({
+            cause,
+          }),
         });
       }),
     ),

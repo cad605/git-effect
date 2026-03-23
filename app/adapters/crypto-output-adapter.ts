@@ -2,7 +2,12 @@ import { CryptoHasher } from "bun";
 import { Effect, Layer } from "effect";
 
 import { ObjectHash } from "../domain/models/object.ts";
-import { CryptoOutputPort, CryptoOutputPortError, type CryptoOutputPortShape } from "../ports/crypto-output-port.ts";
+import {
+  CryptoOutputPort,
+  CryptoOutputPortError,
+  type CryptoOutputPortShape,
+  HashingFailed,
+} from "../ports/crypto-output-port.ts";
 
 const makeImpl = Effect.gen(function*() {
   const hash: CryptoOutputPortShape["hash"] = Effect.fn("HashOutputAdapter.hash")(
@@ -13,7 +18,7 @@ const makeImpl = Effect.gen(function*() {
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
-        return yield* new CryptoOutputPortError({ message: "Hashing failed", cause });
+        return yield* new CryptoOutputPortError({ reason: new HashingFailed({ cause }) });
       }),
     ),
   );

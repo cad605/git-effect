@@ -1,11 +1,19 @@
 import { type Effect, Schema, ServiceMap } from "effect";
 
-export class CompressionOutputPortError extends Schema.TaggedErrorClass(
-  "CompressionOutputPortError",
-)("CompressionOutputPortError", {
-  message: Schema.String,
+export class ZipFailed extends Schema.TaggedErrorClass<ZipFailed>()("ZipFailed", {
   cause: Schema.Defect,
 }) {}
+
+export class UnzipFailed extends Schema.TaggedErrorClass<UnzipFailed>()("UnzipFailed", {
+  cause: Schema.Defect,
+}) {}
+
+export class CompressionOutputPortError extends Schema.TaggedErrorClass<CompressionOutputPortError>()(
+  "CompressionOutputPortError",
+  {
+    reason: Schema.Union([ZipFailed, UnzipFailed]),
+  },
+) {}
 
 export type CompressionOutputPortShape = {
   zip: ({
