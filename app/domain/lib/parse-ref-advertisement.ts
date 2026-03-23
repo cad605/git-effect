@@ -1,14 +1,64 @@
-import { Effect, Schema, String } from "effect";
+import { Effect, Schema, SchemaGetter } from "effect";
 
 import { RefAdvertisementParseError } from "../errors/ref-advertisement-parse-error.ts";
-import { decodePktLines } from "./decode-pkt-line.ts";
-import { AdvertisedRef, RefName, UploadPackAdvertisement } from "../models/transfer-protocol.ts";
 import { ObjectHash } from "../models/object.ts";
+import { AdvertisedRef, RefName, UploadPackAdvertisement } from "../models/transfer-protocol.ts";
+import { decodePktLines, PktLineData, PktLineFlush } from "./decode-pkt-line.ts";
 
 const decoder = new TextDecoder();
+const encoder = new TextEncoder();
 
 const SERVICE_PRELUDE = "# service=git-upload-pack\n";
 const SYMREF_CAPABILITY_PREFIX = "symref=HEAD:";
+
+const ServicePreludePktLine = PktLineData.pipe(
+  Schema.decodeTo(
+    Schema.String.pipe(
+      Schema.refine((value): value is string => value === SERVICE_PRELUDE, {
+        description: "must match '# service=git-upload-pack\\n' service prelude",
+      }),
+    ),
+    {
+      decode: SchemaGetter.transform(({ payload }) => decoder.decode(payload)),
+      encode: SchemaGetter.transform((value) => new PktLineData({ payload: encoder.encode(value) })),
+    },
+  ),
+);
+
+const RefLinePayload = Schema.String.pipe(
+  Schema.check(Schema.isPattern(/\n$/)),
+  Schema.decodeTo(
+    Schema.Struct({
+      identityPart: Schema.String,
+      capabilityPart: Schema.String,
+      hasCapabilitySection: Schema.Boolean,
+    }),
+    {
+      decode: SchemaGetter.transform((line) => {
+        const lineWithoutLF = line.slice(0, -1);
+        const nullIndex = lineWithoutLF.indexOf("\0");
+
+        return {
+          identityPart: nullIndex === -1 ? lineWithoutLF : lineWithoutLF.slice(0, nullIndex),
+          capabilityPart: nullIndex === -1 ? "" : lineWithoutLF.slice(nullIndex + 1),
+          hasCapabilitySection: nullIndex !== -1,
+        };
+      }),
+      encode: SchemaGetter.transform(({ identityPart, capabilityPart, hasCapabilitySection }) =>
+        `${identityPart}${hasCapabilitySection ? `\0${capabilityPart}` : ""}\n`
+      ),
+    },
+  ),
+);
+
+const RefLinePayloadWithoutCapabilities = RefLinePayload.pipe(
+  Schema.refine(
+    (value): value is typeof value => !value.hasCapabilitySection,
+    {
+      description: "capabilities are only allowed on the first advertisement ref line",
+    },
+  ),
+);
 
 const parseRefIdentity = Effect.fn("parseRefIdentity")(function*(raw: string) {
   const separatorIndex = raw.indexOf(" ");
@@ -30,40 +80,26 @@ const parseRefIdentity = Effect.fn("parseRefIdentity")(function*(raw: string) {
 
 const parseRefLine = Effect.fn("parseRefLine")(
   function*({ payload, allowCapabilities }: { payload: Uint8Array<ArrayBuffer>; allowCapabilities: boolean }) {
-    const line = decoder.decode(payload);
+    const { identityPart, capabilityPart } = yield* Schema.decodeUnknownEffect(
+      allowCapabilities ? RefLinePayload : RefLinePayloadWithoutCapabilities,
+    )(decoder.decode(payload)).pipe(
+      Effect.mapError(
+        () =>
+          new RefAdvertisementParseError({
+            reason: "MalformedRefLine",
+            detail: allowCapabilities
+              ? "Ref line is malformed or missing trailing newline."
+              : "Only first ref line may include capability data.",
+          }),
+      ),
+    );
 
-    if (!String.endsWith("\n")(line)) {
-      return yield* Effect.fail(
-        new RefAdvertisementParseError({
-          reason: "MalformedRefLine",
-          detail: "Ref line is missing trailing newline.",
-        }),
-      );
-    }
-
-    const lineWithoutLF = line.slice(0, -1);
-    const nullIndex = lineWithoutLF.indexOf("\0");
-
-    if (nullIndex !== -1 && !allowCapabilities) {
-      return yield* Effect.fail(
-        new RefAdvertisementParseError({
-          reason: "MalformedRefLine",
-          detail: "Only first ref line may include capability data.",
-        }),
-      );
-    }
-
-    const identityPart = nullIndex === -1 ? lineWithoutLF : lineWithoutLF.slice(0, nullIndex);
-    const capabilityPart = nullIndex === -1 ? "" : lineWithoutLF.slice(nullIndex + 1);
     const ref = yield* parseRefIdentity(identityPart);
 
-    const capabilities =
-      capabilityPart.length === 0
-        ? []
-        : capabilityPart
-            .split(" ")
-            .map((capability) => capability.trim())
-            .filter((capability) => capability.length > 0);
+    const capabilities = capabilityPart
+      .split(" ")
+      .map((capability) => capability.trim())
+      .filter((capability) => capability.length > 0);
 
     return { ref, capabilities };
   },
@@ -76,9 +112,7 @@ const resolveHeadSymrefTarget = Effect.fn("resolveHeadSymrefTarget")(function*({
   refs: ReadonlyArray<AdvertisedRef>;
   capabilities: ReadonlyArray<string>;
 }) {
-  const symrefCapability = capabilities.find((capability) =>
-    capability.startsWith(SYMREF_CAPABILITY_PREFIX),
-  );
+  const symrefCapability = capabilities.find((capability) => capability.startsWith(SYMREF_CAPABILITY_PREFIX));
 
   if (symrefCapability) {
     return yield* Schema.decodeUnknownEffect(RefName)(
@@ -118,34 +152,25 @@ export const parseRefAdvertisement = Effect.fn("parseRefAdvertisement")(function
 }) {
   const [serviceLine, flushAfterService, ...advertisementLines] = yield* decodePktLines({ content });
 
-  if (serviceLine._tag !== "Data") {
-    return yield* Effect.fail(
-      new RefAdvertisementParseError({
-        reason: "MissingServicePrelude",
-        detail: "Discovery response is missing '# service=git-upload-pack' prelude packet.",
-      }),
-    );
-  }
+  yield* Schema.decodeUnknownEffect(ServicePreludePktLine)(serviceLine).pipe(
+    Effect.mapError(
+      () =>
+        new RefAdvertisementParseError({
+          reason: "MissingServicePrelude",
+          detail: "Discovery response is missing or has an invalid '# service=git-upload-pack' prelude packet.",
+        }),
+    ),
+  );
 
-  const prelude = decoder.decode(serviceLine.payload);
-
-  if (prelude !== SERVICE_PRELUDE) {
-    return yield* Effect.fail(
-      new RefAdvertisementParseError({
-        reason: "MissingServicePrelude",
-        detail: `Expected '${SERVICE_PRELUDE.trim()}', received '${prelude.trim()}'.`,
-      }),
-    );
-  }
-
-  if (flushAfterService._tag !== "Flush") {
-    return yield* Effect.fail(
-      new RefAdvertisementParseError({
-        reason: "MissingServiceFlush",
-        detail: "Discovery response is missing flush packet after service prelude.",
-      }),
-    );
-  }
+  yield* Schema.decodeUnknownEffect(PktLineFlush)(flushAfterService).pipe(
+    Effect.mapError(
+      () =>
+        new RefAdvertisementParseError({
+          reason: "MissingServiceFlush",
+          detail: "Discovery response is missing flush packet after service prelude.",
+        }),
+    ),
+  );
 
   const refs: Array<AdvertisedRef> = [];
   let capabilities: Array<string> = [];
@@ -168,7 +193,7 @@ export const parseRefAdvertisement = Effect.fn("parseRefAdvertisement")(function
     }
 
     const parsed = yield* parseRefLine({ payload: line.payload, allowCapabilities: firstRef });
-    
+
     refs.push(parsed.ref);
 
     if (firstRef) {

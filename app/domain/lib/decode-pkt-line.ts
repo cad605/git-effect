@@ -10,15 +10,15 @@ const MINIMUM_PACKET_LENGTH = 4;
 const MAX_PACKET_LENGTH = 0xffff;
 const HEX_LENGTH_PATTERN = /^[0-9a-fA-F]{4}$/;
 
-class PktLineData extends Schema.TaggedClass<PktLineData>()("Data", {
+export class PktLineData extends Schema.TaggedClass<PktLineData>()("Data", {
   payload: Schema.instanceOf(Uint8Array<ArrayBuffer>),
 }) {}
 
-class PktLineFlush extends Schema.TaggedClass<PktLineFlush>()("Flush", {}) {}
+export class PktLineFlush extends Schema.TaggedClass<PktLineFlush>()("Flush", {}) {}
 
-const PktLine = Schema.Union([PktLineData, PktLineFlush]);
+export const PktLine = Schema.Union([PktLineData, PktLineFlush]);
 
-type PktLine = typeof PktLine.Type;
+export type PktLine = typeof PktLine.Type;
 
 const PktLineHexPrefix = Schema.String.pipe(Schema.check(Schema.isPattern(HEX_LENGTH_PATTERN)));
 
@@ -91,7 +91,8 @@ const decodePktLineAt = Effect.fn("decodePktLineAt")(
       return yield* Effect.fail(
         new PktLineDecodeError({
           reason: "UnexpectedEOF",
-          detail: `Expected ${payloadLength} payload bytes at offset ${payloadStart}, but stream ended at ${content.length}.`,
+          detail:
+            `Expected ${payloadLength} payload bytes at offset ${payloadStart}, but stream ended at ${content.length}.`,
         }),
       );
     }
@@ -109,13 +110,13 @@ export const decodePktLines = Effect.fn("decodePktLines")(function*({
   content: Uint8Array<ArrayBuffer>;
 }) {
   const lines: Array<PktLine> = [];
-  
+
   let offset = 0;
   while (offset < content.length) {
     const { line, nextOffset } = yield* decodePktLineAt({ content, offset });
-    
+
     lines.push(line);
-    
+
     offset = nextOffset;
   }
 

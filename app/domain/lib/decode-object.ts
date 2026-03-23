@@ -1,15 +1,41 @@
-import { Effect, Encoding, Match, Schema, String } from "effect";
+import { Effect, Encoding, Match, Schema, SchemaGetter, String } from "effect";
 
 import { ObjectDecodeError } from "../errors/object-decode-error.ts";
 import { BlobObject, CommitObject, ObjectHash, ObjectType, TreeEntry, TreeObject } from "../models/object.ts";
 
 const decoder = new TextDecoder();
 
-const readUntil = (buffer: Uint8Array<ArrayBuffer>, offset: number, delimiter: number) => {
+const OBJECT_HEADER_PATTERN = /^(tree|blob|commit) ([^ ]+)$/;
+
+const ObjectSizeFromString = Schema.NumberFromString.pipe(
+  Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+);
+const ObjectHeaderFromString = Schema.String.pipe(
+  Schema.check(Schema.isPattern(OBJECT_HEADER_PATTERN)),
+  Schema.decodeTo(
+    Schema.Struct({
+      type: ObjectType,
+      size: Schema.Number,
+    }),
+    {
+      decode: SchemaGetter.transform((value) => {
+        const [, type, size] = OBJECT_HEADER_PATTERN.exec(value) ?? [];
+
+        return {
+          type: Schema.decodeUnknownSync(ObjectType)(type),
+          size: Schema.decodeUnknownSync(ObjectSizeFromString)(size),
+        };
+      }),
+      encode: SchemaGetter.transform(({ type, size }) => `${type} ${size}`),
+    },
+  ),
+);
+
+const readUntil = Effect.fn("readUntil")(function*(buffer: Uint8Array<ArrayBuffer>, offset: number, delimiter: number) {
   const idx = buffer.indexOf(delimiter, offset);
 
   if (idx === -1) {
-    return Effect.fail(
+    return yield* Effect.fail(
       new ObjectDecodeError({
         reason: "TreeMissingDelimiter",
         detail: `Missing delimiter 0x${delimiter.toString(16)} at offset ${offset}.`,
@@ -17,12 +43,12 @@ const readUntil = (buffer: Uint8Array<ArrayBuffer>, offset: number, delimiter: n
     );
   }
 
-  return Effect.succeed([decoder.decode(buffer.subarray(offset, idx)), idx + 1] as const);
-};
+  return yield* Effect.succeed([decoder.decode(buffer.subarray(offset, idx)), idx + 1] as const);
+});
 
-const readBytes = (buffer: Uint8Array<ArrayBuffer>, offset: number, length: number) => {
+const readBytes = Effect.fn("readBytes")(function*(buffer: Uint8Array<ArrayBuffer>, offset: number, length: number) {
   if (offset + length > buffer.length) {
-    return Effect.fail(
+    return yield* Effect.fail(
       new ObjectDecodeError({
         reason: "TreeTruncatedHash",
         detail: `Expected ${length} bytes at offset ${offset}, body length is ${buffer.length}.`,
@@ -30,8 +56,8 @@ const readBytes = (buffer: Uint8Array<ArrayBuffer>, offset: number, length: numb
     );
   }
 
-  return Effect.succeed([buffer.subarray(offset, offset + length), offset + length] as const);
-};
+  return yield* Effect.succeed([buffer.subarray(offset, offset + length), offset + length] as const);
+});
 
 const decodeBlobBody = Effect.fn("decodeBlobBody")(function*(content: Uint8Array<ArrayBuffer>) {
   return new BlobObject({ content });
@@ -64,9 +90,7 @@ const decodeTreeBody = Effect.fn("decodeTreeBody")(function*(body: Uint8Array<Ar
 });
 
 const decodeCommitBody = Effect.fn("decodeCommitBody")(function*(body: Uint8Array<ArrayBuffer>) {
-  const content = decoder.decode(body);
-
-  const [metadata, ...messages] = String.split("\n\n")(content);
+  const [metadata, ...messages] = String.split("\n\n")(decoder.decode(body));
 
   let tree: ObjectHash | undefined;
   const parents: Array<ObjectHash> = [];
@@ -185,29 +209,15 @@ export const decodeObject = Effect.fn("decodeObject")(function*({ content }: { c
 
   const header = decoder.decode(content.subarray(0, nullIndex));
 
-  const [typeRaw, sizeRaw, ...rest] = String.split(" ")(header);
-
-  if (!typeRaw || !sizeRaw || rest.length > 0) {
-    return yield* Effect.fail(
-      new ObjectDecodeError({
-        reason: "InvalidObjectHeader",
-        detail: `Expected '<type> <size>' header, received '${header}'.`,
-      }),
-    );
-  }
-
-  const size = Number(sizeRaw);
-
-  if (!Number.isInteger(size) || size < 0) {
-    return yield* Effect.fail(
-      new ObjectDecodeError({
-        reason: "InvalidObjectHeader",
-        detail: `Invalid object size '${sizeRaw}' in header '${header}'.`,
-      }),
-    );
-  }
-
-  const type = yield* Schema.decodeUnknownEffect(ObjectType)(typeRaw);
+  const { type, size } = yield* Schema.decodeUnknownEffect(ObjectHeaderFromString)(header).pipe(
+    Effect.mapError(
+      () =>
+        new ObjectDecodeError({
+          reason: "InvalidObjectHeader",
+          detail: `Expected valid '<type> <size>' header, received '${header}'.`,
+        }),
+    ),
+  );
 
   const rawBody = content.subarray(nullIndex + 1);
 
