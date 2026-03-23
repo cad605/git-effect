@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-import { type ObjectHash } from "../models/object.ts";
+import type { ObjectHash } from "../models/object.ts";
 import { concatBytes } from "../utils/concat-bytes.ts";
 import { encodeFlushPktLine, encodePktLine } from "./encode-pkt-line.ts";
 
