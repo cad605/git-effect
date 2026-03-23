@@ -18,13 +18,16 @@ export const buildUploadPackRequest = Effect.fn("buildUploadPackRequest")(functi
   targetHash: ObjectHash;
   serverCapabilities: ReadonlyArray<string>;
 }) {
-  const missingRequired = REQUIRED_UPLOAD_PACK_CAPABILITIES.find((capability) => !serverCapabilities.includes(capability));
+  const missingRequired = REQUIRED_UPLOAD_PACK_CAPABILITIES.find((capability) =>
+    !serverCapabilities.includes(capability)
+  );
   if (missingRequired) {
     return yield* Effect.fail(
       new UploadPackRequestError({
         reason: new MissingUploadPackCapability({
           capability: missingRequired,
-          detail: `Upload-pack advertisement does not include required capability '${missingRequired}' for side-band parsing.`,
+          detail:
+            `Upload-pack advertisement does not include required capability '${missingRequired}' for side-band parsing.`,
         }),
       }),
     );

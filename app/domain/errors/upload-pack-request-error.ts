@@ -8,6 +8,8 @@ export class MissingUploadPackCapability extends Schema.TaggedErrorClass<Missing
   },
 ) {}
 
-export class UploadPackRequestError extends Schema.TaggedErrorClass<UploadPackRequestError>()("UploadPackRequestError", {
-  reason: Schema.Union([MissingUploadPackCapability]),
-}) {}
+export class UploadPackRequestError
+  extends Schema.TaggedErrorClass<UploadPackRequestError>()("UploadPackRequestError", {
+    reason: Schema.Union([MissingUploadPackCapability]),
+  })
+{}

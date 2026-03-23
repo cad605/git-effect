@@ -34,24 +34,26 @@ export const unzip = Effect.fn("compression.unzip")(function*({ content }: { con
   });
 });
 
-export const inflateRaw = Effect.fn("compression.inflateRaw")(function*({ content }: { content: Uint8Array<ArrayBuffer> }) {
-  const { buffer, engine: { bytesWritten: compressedSize } } = yield* Effect.try({
-    try: () =>
-      inflateSync(content, { info: true }) as unknown as {
-        buffer: Uint8Array<ArrayBuffer>;
-        engine: {
-          bytesWritten: number;
-        };
-      },
-    catch: (cause) =>
-      new DecompressionFailed({
-        detail: "Failed to inflate raw entry payload.",
-        cause,
-      }),
-  });
+export const inflateRaw = Effect.fn("compression.inflateRaw")(
+  function*({ content }: { content: Uint8Array<ArrayBuffer> }) {
+    const { buffer, engine: { bytesWritten: compressedSize } } = yield* Effect.try({
+      try: () =>
+        inflateSync(content, { info: true }) as unknown as {
+          buffer: Uint8Array<ArrayBuffer>;
+          engine: {
+            bytesWritten: number;
+          };
+        },
+      catch: (cause) =>
+        new DecompressionFailed({
+          detail: "Failed to inflate raw entry payload.",
+          cause,
+        }),
+    });
 
-  return {
-    inflated: new Uint8Array(buffer),
-    compressedSize,
-  } as const;
-});
+    return {
+      inflated: new Uint8Array(buffer),
+      compressedSize,
+    } as const;
+  },
+);

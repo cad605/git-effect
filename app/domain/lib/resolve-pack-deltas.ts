@@ -1,11 +1,8 @@
 import { Effect } from "effect";
 
 import { DeltaDependencyCycle, MissingDeltaBase, PackfileParseError } from "../errors/packfile-parse-error.ts";
-import { ObjectType, type ObjectHash } from "../models/object.ts";
-import {
-  type PackEntry,
-  ResolvedPackEntry,
-} from "../models/packfile.ts";
+import { type ObjectHash, ObjectType } from "../models/object.ts";
+import { type PackEntry, ResolvedPackEntry } from "../models/packfile.ts";
 import { hashObject } from "../utils/crypto.ts";
 import { applyGitDelta } from "./apply-git-delta.ts";
 import { encodeObject } from "./encode-object.ts";
@@ -164,7 +161,8 @@ export const resolvePackDeltas = Effect.fn("resolvePackDeltas")(function*({
       return yield* Effect.fail(
         new PackfileParseError({
           reason: new MissingDeltaBase({
-            detail: `ofs-delta entry at offset ${unresolvedOfs.offset} references missing base offset ${unresolvedOfs.baseOffset}.`,
+            detail:
+              `ofs-delta entry at offset ${unresolvedOfs.offset} references missing base offset ${unresolvedOfs.baseOffset}.`,
           }),
         }),
       );
@@ -175,7 +173,8 @@ export const resolvePackDeltas = Effect.fn("resolvePackDeltas")(function*({
       return yield* Effect.fail(
         new PackfileParseError({
           reason: new MissingDeltaBase({
-            detail: `ref-delta entry at offset ${unresolvedRef.offset} references unresolved base hash ${unresolvedRef.baseHash}.`,
+            detail:
+              `ref-delta entry at offset ${unresolvedRef.offset} references unresolved base hash ${unresolvedRef.baseHash}.`,
           }),
         }),
       );
@@ -184,7 +183,8 @@ export const resolvePackDeltas = Effect.fn("resolvePackDeltas")(function*({
     return yield* Effect.fail(
       new PackfileParseError({
         reason: new DeltaDependencyCycle({
-          detail: `Could not resolve ${pendingByOffset.size} pack entries due to cyclic or unsatisfied delta dependencies.`,
+          detail:
+            `Could not resolve ${pendingByOffset.size} pack entries due to cyclic or unsatisfied delta dependencies.`,
         }),
       }),
     );

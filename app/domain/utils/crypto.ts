@@ -20,13 +20,15 @@ export const hashObject = Effect.fn("crypto.hashObject")(function*({ content }: 
   });
 });
 
-export const hashRawSha1 = Effect.fn("crypto.hashRawSha1")(function*({ content }: { content: Uint8Array<ArrayBuffer> }) {
-  return yield* Effect.try({
-    try: () => Uint8Array.from(new CryptoHasher("sha1").update(content).digest()),
-    catch: (cause) =>
-      new HashingFailed({
-        detail: "Failed to hash raw bytes.",
-        cause,
-      }),
-  });
-});
+export const hashRawSha1 = Effect.fn("crypto.hashRawSha1")(
+  function*({ content }: { content: Uint8Array<ArrayBuffer> }) {
+    return yield* Effect.try({
+      try: () => Uint8Array.from(new CryptoHasher("sha1").update(content).digest()),
+      catch: (cause) =>
+        new HashingFailed({
+          detail: "Failed to hash raw bytes.",
+          cause,
+        }),
+    });
+  },
+);

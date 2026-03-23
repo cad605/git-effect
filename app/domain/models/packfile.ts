@@ -42,3 +42,12 @@ export class ResolvedPackfile extends Schema.Class<ResolvedPackfile>("ResolvedPa
   header: PackHeader,
   entries: Schema.Array(ResolvedPackEntry),
 }) {}
+
+export class WrittenPackObjectMetadata extends Schema.Class<WrittenPackObjectMetadata>("WrittenPackObjectMetadata")({
+  sourceOffset: NonNegativeInt,
+  sourceType: PackObjectType,
+  type: ObjectType,
+  size: NonNegativeInt,
+}) {}
+
+export type WrittenPackObjectMap = ReadonlyMap<ObjectHash, WrittenPackObjectMetadata>;

@@ -5,8 +5,6 @@ import { decodeObject } from "../../domain/lib/decode-object.ts";
 import { encodeObject } from "../../domain/lib/encode-object.ts";
 import { parseAndResolvePackfile } from "../../domain/lib/parse-and-resolve-packfile.ts";
 import { parseSidebandResponse } from "../../domain/lib/parse-sideband-response.ts";
-import { unzip, zip } from "../../domain/utils/compression.ts";
-import { hashObject as hashObjectContent } from "../../domain/utils/crypto.ts";
 import {
   BlobObject,
   CommitObject,
@@ -16,6 +14,8 @@ import {
   TreeEntry,
   TreeObject,
 } from "../../domain/models/object.ts";
+import { unzip, zip } from "../../domain/utils/compression.ts";
+import { hashObject as hashObjectContent } from "../../domain/utils/crypto.ts";
 import {
   CatFileFailed,
   CloneFailed,
@@ -234,9 +234,30 @@ const makeImpl = Effect.gen(function*() {
 
       const uploadPack = yield* parseSidebandResponse({ content: uploadPackResponse });
 
-      yield* parseAndResolvePackfile({
+      const { entries } = yield* parseAndResolvePackfile({
         content: uploadPack.packBytes,
       });
+
+      yield* Effect.forEach(
+        entries,
+        Effect.fnUntraced(function*({ type, body }) {
+          const content = yield* encodeObject({
+            type,
+            body,
+          });
+
+          const hash = yield* hashObjectContent({ content });
+
+          const compressedContent = yield* zip({
+            content,
+          });
+
+          yield* repository.writeObject({
+            hash,
+            content: compressedContent,
+          });
+        }),
+      );
 
       return uploadPack;
     },

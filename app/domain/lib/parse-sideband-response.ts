@@ -89,13 +89,15 @@ export const parseSidebandResponse = Effect.fn("parseSidebandResponse")(function
       new SidebandParseError({
         reason: wasInSideband
           ? new UnknownSidebandChannel({
-              channel,
-              detail: `Received unsupported sideband channel '${channel}'.`,
-            })
+            channel,
+            detail: `Received unsupported sideband channel '${channel}'.`,
+          })
           : new MalformedSidebandPacket({
-              detail:
-                `Expected sideband channel packet after control lines, but received payload starting with byte '${channel}' (${JSON.stringify(payloadText.slice(0, 32))}).`,
-            }),
+            detail:
+              `Expected sideband channel packet after control lines, but received payload starting with byte '${channel}' (${
+                JSON.stringify(payloadText.slice(0, 32))
+              }).`,
+          }),
       }),
     );
   }

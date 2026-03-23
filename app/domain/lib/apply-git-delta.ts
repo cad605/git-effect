@@ -97,7 +97,9 @@ export const applyGitDelta = Effect.fn("applyGitDelta")(function*({
             reason: new DeltaResultSizeMismatch({
               expectedSize: expectedResultSize,
               actualSize: writeOffset + insertSize,
-              detail: `Delta insert opcode at offset ${cursor - 1} overflows declared result size ${expectedResultSize}.`,
+              detail: `Delta insert opcode at offset ${
+                cursor - 1
+              } overflows declared result size ${expectedResultSize}.`,
             }),
           }),
         );
@@ -184,7 +186,9 @@ export const applyGitDelta = Effect.fn("applyGitDelta")(function*({
       return yield* Effect.fail(
         new PackfileParseError({
           reason: new MalformedDeltaInstruction({
-            detail: `Copy opcode requests base range [${copyOffset}, ${copyOffset + copySize}) beyond base length ${base.byteLength}.`,
+            detail: `Copy opcode requests base range [${copyOffset}, ${
+              copyOffset + copySize
+            }) beyond base length ${base.byteLength}.`,
           }),
         }),
       );
