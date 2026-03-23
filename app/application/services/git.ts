@@ -10,14 +10,17 @@ import {
   CommitObject,
   EntryName,
   FileMode,
+  FilePath,
   ObjectType,
   TreeEntry,
   TreeObject,
 } from "../../domain/models/object.ts";
+import type { ObjectHash } from "../../domain/models/object.ts";
 import { unzip, zip } from "../../domain/utils/compression.ts";
 import { hashObject as hashObjectContent } from "../../domain/utils/crypto.ts";
 import {
   CatFileFailed,
+  CheckoutFailed,
   CloneFailed,
   CloneTargetNotFound,
   CommitTreeFailed,
@@ -27,22 +30,35 @@ import {
   HashObjectFailed,
   InitFailed,
   ListTreeFailed,
+  LsRemoteFailed,
   NotBlobObject,
+  NotCommitObject,
   NotTreeObject,
+  UnpackObjectsFailed,
   WriteTreeFailed,
 } from "../../ports/git-input-port.ts";
-import { RepositoryOutputPort } from "../../ports/repository-output-port.ts";
+import { ObjectStoreOutputPort } from "../../ports/object-store-output-port.ts";
 import { TransferProtocolOutputPort } from "../../ports/transfer-protocol-output-port.ts";
+import { WorkingTreeOutputPort } from "../../ports/working-tree-output-port.ts";
 
 const INITIAL_COMMIT_METADATA = "John Doe <john@example.com> 1234567890 +0000";
 
 const makeImpl = Effect.gen(function*() {
   const transferProtocol = yield* TransferProtocolOutputPort;
-  const repository = yield* RepositoryOutputPort;
+  const objectStore = yield* ObjectStoreOutputPort;
+  const workingTree = yield* WorkingTreeOutputPort;
 
-  const init = Effect.fn("GitService.init")(
+  const decodeStoredObject = Effect.fn("GitService.decodeStoredObject")(function*({ hash }: { hash: ObjectHash }) {
+    const compressed = yield* objectStore.readObject({ hash });
+
+    const content = yield* unzip({ content: compressed });
+
+    return yield* decodeObject({ content });
+  });
+
+  const init: GitInputPortShape["init"] = Effect.fn("GitService.init")(
     function*() {
-      yield* repository.initRepository();
+      yield* objectStore.initRepository();
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
@@ -53,7 +69,7 @@ const makeImpl = Effect.gen(function*() {
 
   const catFile: GitInputPortShape["catFile"] = Effect.fn("GitService.catFile")(
     function*({ hash }) {
-      const compressed = yield* repository.readObject({ hash });
+      const compressed = yield* objectStore.readObject({ hash });
 
       const rawObject = yield* unzip({ content: compressed });
 
@@ -74,7 +90,7 @@ const makeImpl = Effect.gen(function*() {
 
   const hashObject: GitInputPortShape["hashObject"] = Effect.fn("GitService.hashObject")(
     function*({ path, write }) {
-      const uncompressedContent = yield* repository.readWorkingTreeFile({ path });
+      const uncompressedContent = yield* workingTree.readWorkingTreeFile({ path });
 
       const blob = new BlobObject({ content: uncompressedContent });
 
@@ -85,7 +101,7 @@ const makeImpl = Effect.gen(function*() {
       const hash = yield* hashObjectContent({ content });
 
       if (write) {
-        yield* repository.writeObject({
+        yield* objectStore.writeObject({
           hash,
           content: yield* zip({ content }),
         });
@@ -102,7 +118,7 @@ const makeImpl = Effect.gen(function*() {
 
   const listTree: GitInputPortShape["listTree"] = Effect.fn("GitService.listTree")(
     function*({ hash }) {
-      const compressed = yield* repository.readObject({ hash });
+      const compressed = yield* objectStore.readObject({ hash });
 
       const content = yield* unzip({ content: compressed });
 
@@ -123,7 +139,7 @@ const makeImpl = Effect.gen(function*() {
 
   const writeTree: GitInputPortShape["writeTree"] = Effect.fn("GitService.writeTree")(
     function*({ path: dirPath }) {
-      const workingTreeEntries = yield* repository.listWorkingTreeEntries({ path: dirPath });
+      const workingTreeEntries = yield* workingTree.listWorkingTreeEntries({ path: dirPath });
 
       const entries = yield* Effect.forEach(
         workingTreeEntries,
@@ -167,7 +183,7 @@ const makeImpl = Effect.gen(function*() {
 
       const hash = yield* hashObjectContent({ content });
 
-      yield* repository.writeObject({ hash, content: yield* zip({ content }) });
+      yield* objectStore.writeObject({ hash, content: yield* zip({ content }) });
 
       return hash;
     },
@@ -194,7 +210,7 @@ const makeImpl = Effect.gen(function*() {
 
       const hash = yield* hashObjectContent({ content });
 
-      yield* repository.writeObject({ hash, content: yield* zip({ content }) });
+      yield* objectStore.writeObject({ hash, content: yield* zip({ content }) });
 
       return hash;
     },
@@ -205,9 +221,111 @@ const makeImpl = Effect.gen(function*() {
     ),
   );
 
-  const clone: GitInputPortShape["clone"] = Effect.fn("GitService.clone")(
+  const lsRemote: GitInputPortShape["lsRemote"] = Effect.fn("GitService.lsRemote")(
     function*({ url }) {
-      const advertisement = yield* transferProtocol.discoverUploadPackRefs({ url });
+      return yield* transferProtocol.discoverUploadPackRefs({ url });
+    },
+    Effect.catch(
+      Effect.fnUntraced(function*(cause) {
+        return yield* new GitInputPortError({ reason: new LsRemoteFailed({ cause }) });
+      }),
+    ),
+  );
+
+  const unpackObjects: GitInputPortShape["unpackObjects"] = Effect.fn("GitService.unpackObjects")(
+    function*({ packBytes }) {
+      const { entries } = yield* parseAndResolvePackfile({
+        content: packBytes,
+      });
+
+      yield* Effect.forEach(
+        entries,
+        Effect.fnUntraced(function*({ type, body }) {
+          const content = yield* encodeObject({ type, body });
+
+          const hash = yield* hashObjectContent({ content });
+
+          const compressedContent = yield* zip({ content });
+
+          yield* objectStore.writeObject({ hash, content: compressedContent });
+        }),
+      );
+    },
+    Effect.catch(
+      Effect.fnUntraced(function*(cause) {
+        return yield* new GitInputPortError({ reason: new UnpackObjectsFailed({ cause }) });
+      }),
+    ),
+  );
+
+  const checkout: GitInputPortShape["checkout"] = Effect.fn("GitService.checkout")(
+    function*({ commit: commitHash }) {
+      const { body: commit } = yield* decodeStoredObject({ hash: commitHash });
+
+      if (commit._tag !== "CommitObject") {
+        return yield* Effect.fail(new GitInputPortError({ reason: new NotCommitObject({ actualType: commit._tag }) }));
+      }
+
+      const queue: Array<{ treeHash: ObjectHash; parentPath: FilePath }> = [{ treeHash: commit.tree, parentPath: FilePath.makeUnsafe(".") }];
+
+      while (queue.length > 0) {
+        const current = queue.pop();
+
+        if (!current) {
+          continue;
+        }
+
+        const { body } = yield* decodeStoredObject({ hash: current.treeHash });
+
+        if (body._tag !== "TreeObject") {
+          return yield* Effect.fail(new GitInputPortError({ reason: new NotTreeObject({ actualType: body._tag }) }));
+        }
+
+        yield* Effect.forEach(
+          body.entries,
+          Effect.fnUntraced(function*(entry) {
+            const entryPath = FilePath.makeUnsafe(current.parentPath === "." ? entry.name : `${current.parentPath}/${entry.name}`);
+
+            if (entry.mode === "40000") {
+              yield* workingTree.ensureWorkingTreeDirectory({ path: entryPath });
+              
+              queue.push({ treeHash: entry.hash, parentPath: entryPath });
+
+              return;
+            }
+
+            const { body: blob } = yield* decodeStoredObject({ hash: entry.hash });
+
+            if (blob._tag !== "BlobObject") {
+              return yield* Effect.fail(
+                new GitInputPortError({ reason: new NotBlobObject({ actualType: blob._tag }) }),
+              );
+            }
+
+            yield* workingTree.writeWorkingTreeFile({
+              path: entryPath,
+              content: blob.content,
+              mode: entry.mode,
+            });
+          }),
+          { discard: true },
+        );
+      }
+    },
+    Effect.catch(
+      Effect.fnUntraced(function*(cause) {
+        return yield* new GitInputPortError({ reason: new CheckoutFailed({ cause }) });
+      }),
+    ),
+  );
+
+  const clone: GitInputPortShape["clone"] = Effect.fn("GitService.clone")(
+    function*({ url, destination }) {
+      yield* objectStore.setRepositoryRoot({ path: destination });
+
+      yield* objectStore.initRepository();
+
+      const advertisement = yield* lsRemote({ url });
 
       const targetRef = advertisement.refs.find((ref) => ref.name === advertisement.headSymrefTarget);
       const targetHash = targetRef?.hash;
@@ -235,54 +353,42 @@ const makeImpl = Effect.gen(function*() {
 
       const uploadPack = yield* parseSidebandResponse({ content: uploadPackResponse });
 
-      const { entries } = yield* parseAndResolvePackfile({
-        content: uploadPack.packBytes,
-      });
+      yield* unpackObjects({ packBytes: uploadPack.packBytes });
 
-      yield* Effect.forEach(
-        entries,
-        Effect.fnUntraced(function*({ type, body }) {
-          const content = yield* encodeObject({
-            type,
-            body,
-          });
-
-          const hash = yield* hashObjectContent({ content });
-
-          const compressedContent = yield* zip({
-            content,
-          });
-
-          yield* repository.writeObject({
-            hash,
-            content: compressedContent,
-          });
-        }),
-      );
-
-      yield* repository.writeRef({
+      yield* objectStore.writeRef({
         ref: targetRef.name,
         hash: targetHash,
       });
 
-      yield* repository.writeHead({
+      yield* objectStore.writeHead({
         ref: targetRef.name,
       });
+
+      yield* checkout({ commit: targetHash });
 
       return uploadPack;
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
         return yield* new GitInputPortError({
-          reason: new CloneFailed({
-            cause,
-          }),
+          reason: new CloneFailed({ cause }),
         });
       }),
     ),
   );
 
-  return { init, catFile, hashObject, listTree, writeTree, commitTree, clone } satisfies GitInputPortShape;
+  return {
+    init,
+    catFile,
+    hashObject,
+    listTree,
+    writeTree,
+    commitTree,
+    lsRemote,
+    unpackObjects,
+    checkout,
+    clone,
+  } satisfies GitInputPortShape;
 });
 
 export const GitService = Layer.effect(GitInputPort, makeImpl);

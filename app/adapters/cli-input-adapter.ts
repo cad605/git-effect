@@ -220,7 +220,10 @@ const clone = Command.make(
 
     yield* Effect.logDebug("Clone discovery and negotiation...", { url, destination });
 
-    const uploadPackResult = yield* git.clone({ url });
+    const uploadPackResult = yield* git.clone({
+      url,
+      destination: FilePath.makeUnsafe(destination),
+    });
 
     yield* terminal.display(
       [
@@ -242,10 +245,71 @@ const clone = Command.make(
   ]),
 );
 
+const lsRemote = Command.make(
+  "ls-remote",
+  {
+    url: Argument.string("remoteUrl").pipe(
+      Argument.withDescription("Remote repository URL"),
+    ),
+  },
+  Effect.fn("CliInputAdapter.ls-remote")(function*({ url }) {
+    const git = yield* GitInputPort;
+    const terminal = yield* Terminal.Terminal;
+
+    yield* Effect.logDebug("Discovering remote refs...", { url });
+
+    const advertisement = yield* git.lsRemote({ url });
+
+    yield* Effect.forEach(
+      advertisement.refs,
+      ({ hash, name }) => terminal.display(`${hash}\t${name}\n`),
+      { discard: true },
+    );
+
+    yield* Effect.logDebug("Done", { success: true });
+  }),
+).pipe(
+  Command.withDescription("List references in a remote repository"),
+  Command.withExamples([
+    {
+      command: "git ls-remote <remoteUrl>",
+      description: "List all references advertised by a remote",
+    },
+  ]),
+);
+
+const checkoutCmd = Command.make(
+  "checkout",
+  {
+    commit: Argument.string("commit").pipe(
+      Argument.withDescription("Commit SHA to checkout"),
+    ),
+  },
+  Effect.fn("CliInputAdapter.checkout")(function*({ commit }) {
+    const git = yield* GitInputPort;
+
+    yield* Effect.logDebug("Checking out commit...", { commit });
+
+    yield* git.checkout({ commit: ObjectHash.makeUnsafe(commit) });
+
+    yield* Effect.logDebug("Done", { success: true });
+  }),
+).pipe(
+  Command.withDescription("Checkout a commit into the working tree"),
+  Command.withExamples([
+    {
+      command: "git checkout <commit_sha>",
+      description: "Checkout the given commit into the working tree",
+    },
+  ]),
+);
+
 const root = Command.make("git").pipe(Command.withDescription("Git is a version control system."));
 
 export const CliInputAdapter = Command.run(
-  root.pipe(Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTree, clone])),
+  root.pipe(
+    Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTree, lsRemote, checkoutCmd, clone]),
+  ),
   {
     version: "1.0.0",
   },
