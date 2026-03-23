@@ -1,6 +1,7 @@
 import { type Effect, Schema, ServiceMap } from "effect";
 
 import { EntryName, FilePath, type ObjectHash } from "../domain/models/object.ts";
+import type { RefName } from "../domain/models/transfer-protocol.ts";
 
 export class InitRepositoryFailed extends Schema.TaggedErrorClass<InitRepositoryFailed>()("InitRepositoryFailed", {
   cause: Schema.Defect,
@@ -11,6 +12,14 @@ export class ReadObjectFailed extends Schema.TaggedErrorClass<ReadObjectFailed>(
 }) {}
 
 export class WriteObjectFailed extends Schema.TaggedErrorClass<WriteObjectFailed>()("WriteObjectFailed", {
+  cause: Schema.Defect,
+}) {}
+
+export class WriteRefFailed extends Schema.TaggedErrorClass<WriteRefFailed>()("WriteRefFailed", {
+  cause: Schema.Defect,
+}) {}
+
+export class WriteHeadFailed extends Schema.TaggedErrorClass<WriteHeadFailed>()("WriteHeadFailed", {
   cause: Schema.Defect,
 }) {}
 
@@ -39,6 +48,8 @@ export class RepositoryOutputPortError extends Schema.TaggedErrorClass<Repositor
       InitRepositoryFailed,
       ReadObjectFailed,
       WriteObjectFailed,
+      WriteRefFailed,
+      WriteHeadFailed,
       ReadWorkingTreeFileFailed,
       ListWorkingTreeEntriesFailed,
       UnsupportedFileType,
@@ -72,6 +83,16 @@ export interface RepositoryOutputPortShape {
     hash: ObjectHash;
     content: Uint8Array<ArrayBuffer>;
   }) => Effect.Effect<void, RepositoryOutputPortError, never>;
+
+  writeRef: ({
+    ref,
+    hash,
+  }: {
+    ref: RefName;
+    hash: ObjectHash;
+  }) => Effect.Effect<void, RepositoryOutputPortError, never>;
+
+  writeHead: ({ ref }: { ref: RefName }) => Effect.Effect<void, RepositoryOutputPortError, never>;
 
   readWorkingTreeFile: ({
     path,

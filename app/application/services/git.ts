@@ -209,9 +209,10 @@ const makeImpl = Effect.gen(function*() {
     function*({ url }) {
       const advertisement = yield* transferProtocol.discoverUploadPackRefs({ url });
 
-      const targetHash = advertisement.refs.find((ref) => ref.name === advertisement.headSymrefTarget)?.hash;
+      const targetRef = advertisement.refs.find((ref) => ref.name === advertisement.headSymrefTarget);
+      const targetHash = targetRef?.hash;
 
-      if (!targetHash) {
+      if (!targetRef || !targetHash) {
         return yield* Effect.fail(
           new GitInputPortError({
             reason: new CloneTargetNotFound({
@@ -258,6 +259,15 @@ const makeImpl = Effect.gen(function*() {
           });
         }),
       );
+
+      yield* repository.writeRef({
+        ref: targetRef.name,
+        hash: targetHash,
+      });
+
+      yield* repository.writeHead({
+        ref: targetRef.name,
+      });
 
       return uploadPack;
     },

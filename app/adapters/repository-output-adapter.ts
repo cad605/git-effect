@@ -13,7 +13,9 @@ import {
   UnsupportedFileType,
   WorkingTreeEntry,
   WorkingTreeEntryType,
+  WriteHeadFailed,
   WriteObjectFailed,
+  WriteRefFailed,
 } from "../ports/repository-output-port.ts";
 
 const makeImpl = Effect.gen(function*() {
@@ -69,6 +71,43 @@ const makeImpl = Effect.gen(function*() {
     Effect.catch(
       Effect.fnUntraced(function*(cause) {
         return yield* new RepositoryOutputPortError({ reason: new WriteObjectFailed({ cause }) });
+      }),
+    ),
+  );
+
+  const writeRef: RepositoryOutputPortShape["writeRef"] = Effect.fn(
+    "RepositoryOutputAdapter.writeRef",
+  )(
+    function*({ ref, hash }) {
+      const refPath = path.join(".git", ref);
+
+      yield* fs.makeDirectory(path.dirname(refPath), { recursive: true });
+      yield* fs.writeFileString(refPath, `${hash}\n`);
+    },
+    Effect.catch(
+      Effect.fnUntraced(function*(cause) {
+        return yield* new RepositoryOutputPortError({
+          reason: new WriteRefFailed({
+            cause,
+          }),
+        });
+      }),
+    ),
+  );
+
+  const writeHead: RepositoryOutputPortShape["writeHead"] = Effect.fn(
+    "RepositoryOutputAdapter.writeHead",
+  )(
+    function*({ ref }) {
+      yield* fs.writeFileString(path.join(".git", "HEAD"), `ref: ${ref}\n`);
+    },
+    Effect.catch(
+      Effect.fnUntraced(function*(cause) {
+        return yield* new RepositoryOutputPortError({
+          reason: new WriteHeadFailed({
+            cause,
+          }),
+        });
       }),
     ),
   );
@@ -160,6 +199,8 @@ const makeImpl = Effect.gen(function*() {
     initRepository,
     readObject,
     writeObject,
+    writeRef,
+    writeHead,
     readWorkingTreeFile,
     listWorkingTreeEntries,
   } satisfies RepositoryOutputPortShape;
