@@ -220,12 +220,13 @@ const clone = Command.make(
 
     yield* Effect.logDebug("Clone discovery and negotiation...", { url, destination });
 
-    const uploadPackResponse = yield* git.clone({ url });
+    const uploadPackResult = yield* git.clone({ url });
 
     yield* terminal.display(
       [
         "upload-pack negotiation complete",
-        `response-bytes: ${uploadPackResponse.byteLength}`,
+        `pack-bytes: ${uploadPackResult.packBytes.byteLength}`,
+        `progress-packets: ${uploadPackResult.progressMessages.length}`,
       ].join("\n"),
     );
 

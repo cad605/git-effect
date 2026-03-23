@@ -12,8 +12,8 @@ import {
   InvalidUploadPackContentType,
   TransferProtocolOutputPort,
   TransferProtocolOutputPortError,
-  UploadPackHttpStatus,
   type TransferProtocolOutputPortShape,
+  UploadPackHttpStatus,
 } from "../ports/transfer-protocol-output-port.ts";
 
 const GIT_UPLOAD_PACK_SERVICE = "git-upload-pack";

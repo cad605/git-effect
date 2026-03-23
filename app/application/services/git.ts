@@ -1,8 +1,9 @@
 import { Effect, Layer, Match } from "effect";
 
-import { decodeObject } from "../../domain/lib/decode-object.ts";
 import { buildUploadPackRequest } from "../../domain/lib/build-upload-pack-request.ts";
+import { decodeObject } from "../../domain/lib/decode-object.ts";
 import { encodeObject } from "../../domain/lib/encode-object.ts";
+import { parseSidebandResponse } from "../../domain/lib/parse-sideband-response.ts";
 import {
   BlobObject,
   CommitObject,
@@ -227,10 +228,12 @@ const makeImpl = Effect.gen(function*() {
         serverCapabilities: advertisement.capabilities,
       });
 
-      return yield* transferProtocol.requestUploadPack({
+      const uploadPackResponse = yield* transferProtocol.requestUploadPack({
         url,
         body: requestBody,
       });
+
+      return yield* parseSidebandResponse({ content: uploadPackResponse });
     },
     Effect.catch(
       Effect.fnUntraced(function*(cause) {

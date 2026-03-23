@@ -18,3 +18,8 @@ export class UploadPackAdvertisement extends Schema.Class<UploadPackAdvertisemen
   capabilities: Schema.Array(Schema.NonEmptyString),
   headSymrefTarget: Schema.optional(RefName),
 }) {}
+
+export class UploadPackResult extends Schema.Class<UploadPackResult>("UploadPackResult")({
+  packBytes: Schema.instanceOf(Uint8Array<ArrayBuffer>),
+  progressMessages: Schema.Array(Schema.String),
+}) {}
