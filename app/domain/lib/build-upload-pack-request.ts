@@ -9,7 +9,7 @@ const encoder = new TextEncoder();
 
 const REQUIRED_UPLOAD_PACK_CAPABILITIES = ["side-band-64k"] as const;
 const PREFERRED_UPLOAD_PACK_CAPABILITIES = ["ofs-delta"] as const;
-const OPTIONAL_UPLOAD_PACK_CAPABILITIES = ["no-progress"] as const;
+const OPTIONAL_UPLOAD_PACK_CAPABILITIES = [] as const;
 
 export const buildUploadPackRequest = Effect.fn("buildUploadPackRequest")(function*({
   targetHash,

@@ -220,6 +220,8 @@ const clone = Command.make(
 
     yield* Effect.logDebug("Clone discovery and negotiation...", { url, destination });
 
+    yield* terminal.display(`Cloning into '${destination}'...\n`);
+
     yield* git
       .clone({
         url,
