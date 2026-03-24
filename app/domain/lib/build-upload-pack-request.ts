@@ -53,7 +53,7 @@ export const buildUploadPackRequest = Effect.fn("buildUploadPackRequest")(functi
     encodePktLine({
       payload: encoder.encode("done\n"),
     }),
-    encodeFlushPktLine(),
+    encodeFlushPktLine
   ]);
 
   return concatBytes([want, flush, done]);

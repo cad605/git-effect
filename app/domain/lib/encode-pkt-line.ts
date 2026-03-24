@@ -41,6 +41,4 @@ export const encodePktLine = Effect.fn("encodePktLine")(function*({
   return concatBytes([prefix, payload]);
 });
 
-export const encodeFlushPktLine = Effect.fn("encodeFlushPktLine")(function*() {
-  return encoder.encode("0000");
-});
+export const encodeFlushPktLine = Effect.succeed(encoder.encode("0000"));

@@ -53,7 +53,7 @@ const readUntil = Effect.fn("readUntil")(function*(buffer: Uint8Array<ArrayBuffe
     );
   }
 
-  return yield* Effect.succeed([decoder.decode(buffer.subarray(offset, idx)), idx + 1] as const);
+  return [decoder.decode(buffer.subarray(offset, idx)), idx + 1] as const;
 });
 
 const readBytes = Effect.fn("readBytes")(function*(buffer: Uint8Array<ArrayBuffer>, offset: number, length: number) {
@@ -67,7 +67,7 @@ const readBytes = Effect.fn("readBytes")(function*(buffer: Uint8Array<ArrayBuffe
     );
   }
 
-  return yield* Effect.succeed([buffer.subarray(offset, offset + length), offset + length] as const);
+  return [buffer.subarray(offset, offset + length), offset + length] as const;
 });
 
 const decodeBlobBody = Effect.fn("decodeBlobBody")(function*(content: Uint8Array<ArrayBuffer>) {

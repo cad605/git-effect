@@ -13,7 +13,7 @@ export type ResolvedBaseObject = {
 };
 
 const computeResolvedEntryHash = Effect.fn("computeResolvedEntryHash")(function*(entry: ResolvedPackEntry) {
-  const content = yield* encodeObject({
+  const content = encodeObject({
     type: entry.type,
     body: entry.body,
   });

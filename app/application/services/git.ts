@@ -96,7 +96,7 @@ const makeImpl = Effect.gen(function*() {
 
       const body = yield* BlobObject.serializeBody(blob);
 
-      const content = yield* encodeObject({ type: ObjectType.makeUnsafe("blob"), body });
+      const content = encodeObject({ type: ObjectType.makeUnsafe("blob"), body });
 
       const hash = yield* hashObjectContent({ content });
 
@@ -179,7 +179,7 @@ const makeImpl = Effect.gen(function*() {
 
       const body = yield* TreeObject.serializeBody(new TreeObject({ entries }));
 
-      const content = yield* encodeObject({ type: ObjectType.makeUnsafe("tree"), body });
+      const content = encodeObject({ type: ObjectType.makeUnsafe("tree"), body });
 
       const hash = yield* hashObjectContent({ content });
 
@@ -206,7 +206,7 @@ const makeImpl = Effect.gen(function*() {
 
       const body = yield* CommitObject.serializeBody(commit);
 
-      const content = yield* encodeObject({ type: ObjectType.makeUnsafe("commit"), body });
+      const content = encodeObject({ type: ObjectType.makeUnsafe("commit"), body });
 
       const hash = yield* hashObjectContent({ content });
 
@@ -241,7 +241,7 @@ const makeImpl = Effect.gen(function*() {
       yield* Effect.forEach(
         entries,
         Effect.fnUntraced(function*({ type, body }) {
-          const content = yield* encodeObject({ type, body });
+          const content = encodeObject({ type, body });
 
           const hash = yield* hashObjectContent({ content });
 
