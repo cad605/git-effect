@@ -1,4 +1,4 @@
-import { type Effect, Schema, ServiceMap } from "effect";
+import { type Effect, Schema, ServiceMap, type Stream } from "effect";
 import type { UploadPackAdvertisement } from "../domain/models/transfer-protocol.ts";
 
 export class DiscoveryHttpStatus extends Schema.TaggedErrorClass<DiscoveryHttpStatus>()("DiscoveryHttpStatus", {
@@ -28,10 +28,6 @@ export class EmptyResponseBody extends Schema.TaggedErrorClass<EmptyResponseBody
   url: Schema.String,
 }) {}
 
-export class EmptyUploadPackBody extends Schema.TaggedErrorClass<EmptyUploadPackBody>()("EmptyUploadPackBody", {
-  url: Schema.String,
-}) {}
-
 export class AdvertisementParseFailed extends Schema.TaggedErrorClass<AdvertisementParseFailed>()(
   "AdvertisementParseFailed",
   {
@@ -53,7 +49,6 @@ export class TransferProtocolOutputPortError extends Schema.TaggedErrorClass<Tra
       InvalidContentType,
       InvalidUploadPackContentType,
       EmptyResponseBody,
-      EmptyUploadPackBody,
       AdvertisementParseFailed,
       HttpRequestFailed,
     ]),
@@ -73,7 +68,11 @@ export interface TransferProtocolOutputPortShape {
   }: {
     url: string;
     body: Uint8Array<ArrayBuffer>;
-  }) => Effect.Effect<Uint8Array<ArrayBuffer>, TransferProtocolOutputPortError, never>;
+  }) => Effect.Effect<
+    Stream.Stream<Uint8Array<ArrayBuffer>, TransferProtocolOutputPortError>,
+    TransferProtocolOutputPortError,
+    never
+  >;
 }
 
 export class TransferProtocolOutputPort extends ServiceMap.Service<

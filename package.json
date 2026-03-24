@@ -1,5 +1,5 @@
 {
-  "name": "@codecrafters/git",
+  "name": "git-effect",
   "description": "Build your own Git challenge, from CodeCrafters",
   "type": "module",
   "scripts": {

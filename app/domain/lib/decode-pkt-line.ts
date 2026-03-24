@@ -131,3 +131,39 @@ export const decodePktLines = Effect.fn("decodePktLines")(function*({
 
   return lines;
 });
+
+/**
+ * Incrementally extracts complete pkt-lines from a buffer. Unlike
+ * `decodePktLines`, this function does NOT fail when the buffer ends
+ * mid-packet -- it returns the parsed lines and the remaining bytes so the
+ * caller can append more data and retry.
+ */
+export const extractPktLinesFromBuffer = Effect.fn("extractPktLinesFromBuffer")(function*(
+  buffer: Uint8Array<ArrayBuffer>,
+) {
+  const lines: Array<PktLine> = [];
+  let offset = 0;
+
+  while (offset + LENGTH_PREFIX_SIZE <= buffer.length) {
+    const length = yield* decodeLength(buffer, offset);
+
+    if (length === FLUSH_LENGTH) {
+      lines.push(new PktLineFlush({}));
+      offset += LENGTH_PREFIX_SIZE;
+      continue;
+    }
+
+    if (offset + length > buffer.length) {
+      break;
+    }
+
+    lines.push(
+      new PktLineData({
+        payload: buffer.subarray(offset + LENGTH_PREFIX_SIZE, offset + length),
+      }),
+    );
+    offset += length;
+  }
+
+  return { lines, remaining: buffer.subarray(offset) };
+});

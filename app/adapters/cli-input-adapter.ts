@@ -1,4 +1,4 @@
-import { Effect, Option, Terminal } from "effect";
+import { Effect, Option, Stream, Terminal } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
 import { FilePath, ObjectHash } from "../domain/models/object.ts";
@@ -220,18 +220,12 @@ const clone = Command.make(
 
     yield* Effect.logDebug("Clone discovery and negotiation...", { url, destination });
 
-    const uploadPackResult = yield* git.clone({
-      url,
-      destination: FilePath.makeUnsafe(destination),
-    });
-
-    yield* terminal.display(
-      [
-        "upload-pack negotiation complete",
-        `pack-bytes: ${uploadPackResult.packBytes.byteLength}`,
-        `progress-packets: ${uploadPackResult.progressMessages.length}`,
-      ].join("\n"),
-    );
+    yield* git
+      .clone({
+        url,
+        destination: FilePath.makeUnsafe(destination),
+      })
+      .pipe(Stream.runForEach((message) => terminal.display(message)));
 
     yield* Effect.logDebug("Done", { success: true });
   }),
@@ -278,7 +272,7 @@ const lsRemote = Command.make(
   ]),
 );
 
-const checkoutCmd = Command.make(
+const checkout = Command.make(
   "checkout",
   {
     commit: Argument.string("commit").pipe(
@@ -308,7 +302,7 @@ const root = Command.make("git").pipe(Command.withDescription("Git is a version 
 
 export const CliInputAdapter = Command.run(
   root.pipe(
-    Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTree, lsRemote, checkoutCmd, clone]),
+    Command.withSubcommands([init, catFile, hashObject, listTree, writeTree, commitTree, lsRemote, checkout, clone]),
   ),
   {
     version: "1.0.0",

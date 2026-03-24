@@ -1,4 +1,4 @@
-import { Effect, Layer, Match } from "effect";
+import { Effect, Layer, Match, Stream } from "effect";
 
 import { buildUploadPackRequest } from "../../domain/lib/build-upload-pack-request.ts";
 import { decodeObject } from "../../domain/lib/decode-object.ts";
@@ -319,63 +319,69 @@ const makeImpl = Effect.gen(function*() {
     ),
   );
 
-  const clone: GitInputPortShape["clone"] = Effect.fn("GitService.clone")(
-    function*({ url, destination }) {
-      yield* objectStore.setRepositoryRoot({ path: destination });
+  const clone: GitInputPortShape["clone"] = ({ url, destination }) =>
+    Stream.unwrap(
+      Effect.gen(function*() {
+        yield* objectStore.setRepositoryRoot({ path: destination });
 
-      yield* objectStore.initRepository();
+        yield* objectStore.initRepository();
 
-      const advertisement = yield* lsRemote({ url });
+        const advertisement = yield* lsRemote({ url });
 
-      const targetRef = advertisement.refs.find((ref) => ref.name === advertisement.headSymrefTarget);
-      const targetHash = targetRef?.hash;
+        const targetRef = advertisement.refs.find((ref) => ref.name === advertisement.headSymrefTarget);
+        const targetHash = targetRef?.hash;
 
-      if (!targetRef || !targetHash) {
-        return yield* Effect.fail(
-          new GitInputPortError({
-            reason: new CloneTargetNotFound({
-              detail:
-                "Could not resolve a target commit from advertised refs. Expected HEAD symref, refs/heads/main, refs/heads/master, or any heads ref.",
+        if (!targetRef || !targetHash) {
+          return yield* Effect.fail(
+            new GitInputPortError({
+              reason: new CloneTargetNotFound({
+                detail:
+                  "Could not resolve a target commit from advertised refs. Expected HEAD symref, refs/heads/main, refs/heads/master, or any heads ref.",
+              }),
             }),
-          }),
-        );
-      }
+          );
+        }
 
-      const requestBody = yield* buildUploadPackRequest({
-        targetHash,
-        serverCapabilities: advertisement.capabilities,
-      });
-
-      const uploadPackResponse = yield* transferProtocol.requestUploadPack({
-        url,
-        body: requestBody,
-      });
-
-      const uploadPack = yield* parseSidebandResponse({ content: uploadPackResponse });
-
-      yield* unpackObjects({ packBytes: uploadPack.packBytes });
-
-      yield* objectStore.writeRef({
-        ref: targetRef.name,
-        hash: targetHash,
-      });
-
-      yield* objectStore.writeHead({
-        ref: targetRef.name,
-      });
-
-      yield* checkout({ commit: targetHash });
-
-      return uploadPack;
-    },
-    Effect.catch(
-      Effect.fnUntraced(function*(cause) {
-        return yield* new GitInputPortError({
-          reason: new CloneFailed({ cause }),
+        const requestBody = yield* buildUploadPackRequest({
+          targetHash,
+          serverCapabilities: advertisement.capabilities,
         });
+
+        const uploadPackStream = yield* transferProtocol.requestUploadPack({
+          url,
+          body: requestBody,
+        });
+
+        const { progressStream, packBytes } = yield* parseSidebandResponse({
+          content: uploadPackStream,
+        });
+
+        return Stream.concat(
+          progressStream,
+          Stream.fromEffectDrain(
+            Effect.gen(function*() {
+              yield* unpackObjects({ packBytes: yield* packBytes });
+
+              yield* objectStore.writeRef({
+                ref: targetRef.name,
+                hash: targetHash,
+              });
+
+              yield* objectStore.writeHead({
+                ref: targetRef.name,
+              });
+
+              yield* checkout({ commit: targetHash });
+            }),
+          ),
+        );
       }),
-    ),
-  );
+    ).pipe(
+      Stream.mapError(
+        (cause) =>
+          new GitInputPortError({ reason: new CloneFailed({ cause }) }),
+      ),
+    );
 
   return {
     init,

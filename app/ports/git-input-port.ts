@@ -1,7 +1,7 @@
-import { type Effect, Schema, ServiceMap } from "effect";
+import { type Effect, Schema, ServiceMap, type Stream } from "effect";
 
 import type { BlobObject, FilePath, ObjectHash, TreeObject } from "../domain/models/object.ts";
-import type { UploadPackAdvertisement, UploadPackResult } from "../domain/models/transfer-protocol.ts";
+import type { UploadPackAdvertisement } from "../domain/models/transfer-protocol.ts";
 
 export class InitFailed extends Schema.TaggedErrorClass<InitFailed>()("InitFailed", {
   cause: Schema.Defect,
@@ -133,7 +133,7 @@ export interface GitInputPortShape {
   }: {
     url: string;
     destination: FilePath;
-  }) => Effect.Effect<UploadPackResult, GitInputPortError, never>;
+  }) => Stream.Stream<string, GitInputPortError>;
 }
 
 export class GitInputPort extends ServiceMap.Service<GitInputPort, GitInputPortShape>()(

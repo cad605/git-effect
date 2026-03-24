@@ -1,4 +1,4 @@
-import { Effect, Layer, Schedule } from "effect";
+import { Effect, Layer, Schedule, Stream } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 
 import { parseRefAdvertisement } from "../domain/lib/parse-ref-advertisement.ts";
@@ -6,7 +6,6 @@ import {
   AdvertisementParseFailed,
   DiscoveryHttpStatus,
   EmptyResponseBody,
-  EmptyUploadPackBody,
   HttpRequestFailed,
   InvalidContentType,
   InvalidUploadPackContentType,
@@ -87,20 +86,20 @@ const makeImpl = Effect.gen(function*() {
     "TransferProtocolOutputAdapter.requestUploadPack",
   )(
     function*({ url, body }) {
-      const { headers, arrayBuffer, status } = yield* HttpClientRequest.post(url).pipe(
+      const response = yield* HttpClientRequest.post(url).pipe(
         HttpClientRequest.appendUrl("/git-upload-pack"),
         HttpClientRequest.setHeader("Accept", UPLOAD_PACK_RESULT_CONTENT_TYPE),
         HttpClientRequest.bodyUint8Array(body, UPLOAD_PACK_REQUEST_CONTENT_TYPE),
         http.execute,
       );
 
-      if (status < 200 || status >= 300) {
+      if (response.status < 200 || response.status >= 300) {
         return yield* new TransferProtocolOutputPortError({
-          reason: new UploadPackHttpStatus({ status, url }),
+          reason: new UploadPackHttpStatus({ status: response.status, url }),
         });
       }
 
-      const contentType = headers["content-type"] ?? "";
+      const contentType = response.headers["content-type"] ?? "";
 
       if (!contentType.includes(UPLOAD_PACK_RESULT_CONTENT_TYPE)) {
         return yield* new TransferProtocolOutputPortError({
@@ -108,15 +107,15 @@ const makeImpl = Effect.gen(function*() {
         });
       }
 
-      const responseBody = new Uint8Array(yield* arrayBuffer);
-
-      if (responseBody.byteLength === 0) {
-        return yield* new TransferProtocolOutputPortError({
-          reason: new EmptyUploadPackBody({ url }),
-        });
-      }
-
-      return responseBody;
+      return response.stream.pipe(
+        Stream.map((chunk) => new Uint8Array(chunk)),
+        Stream.mapError(
+          (cause) =>
+            new TransferProtocolOutputPortError({
+              reason: new HttpRequestFailed({ cause }),
+            }),
+        ),
+      );
     },
     Effect.catchTags({
       "HttpClientError": Effect.fnUntraced(function*(cause) {
